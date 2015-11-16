@@ -1,0 +1,767 @@
+
+
+#include "stm32f4xx.h"
+#include "stm32f4xx_adc.h"
+#include "stm32f4xx_rcc.h"
+#include "stm32f4xx_gpio.h"
+#include "stm32f4xx_tim.h"
+#include "uart.h"
+#include "linux.h"
+#include "math.h"
+#include "gimbal.h"
+#include "idg3200.h"
+#include "mpu9150.h"
+#include "copter.h"
+
+
+
+gimbal_t gimbal;
+
+
+static int debug_counter = 0;
+
+
+#define WAVEFORM_SIZE sizeof(sin_table)
+#define PWM_PERIOD 1024
+#define MAX_SIN 255
+
+const uint8_t sin_table[] = {
+	0x7f, 0x80, 0x81, 0x81, 0x82, 0x83, 0x84, 0x84, 0x85, 0x86, 0x87, 0x88, 0x88, 0x89, 0x8a, 0x8b, 
+	0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x8f, 0x90, 0x91, 0x92, 0x92, 0x93, 0x94, 0x95, 0x96, 0x96, 0x97, 
+	0x98, 0x99, 0x99, 0x9a, 0x9b, 0x9c, 0x9c, 0x9d, 0x9e, 0x9f, 0x9f, 0xa0, 0xa1, 0xa2, 0xa3, 0xa3, 
+	0xa4, 0xa5, 0xa6, 0xa6, 0xa7, 0xa8, 0xa8, 0xa9, 0xaa, 0xab, 0xab, 0xac, 0xad, 0xae, 0xae, 0xaf, 
+	0xb0, 0xb1, 0xb1, 0xb2, 0xb3, 0xb3, 0xb4, 0xb5, 0xb6, 0xb6, 0xb7, 0xb8, 0xb8, 0xb9, 0xba, 0xba, 
+	0xbb, 0xbc, 0xbc, 0xbd, 0xbe, 0xbf, 0xbf, 0xc0, 0xc1, 0xc1, 0xc2, 0xc3, 0xc3, 0xc4, 0xc5, 0xc5, 
+	0xc6, 0xc6, 0xc7, 0xc8, 0xc8, 0xc9, 0xca, 0xca, 0xcb, 0xcc, 0xcc, 0xcd, 0xcd, 0xce, 0xcf, 0xcf, 
+	0xd0, 0xd0, 0xd1, 0xd2, 0xd2, 0xd3, 0xd3, 0xd4, 0xd5, 0xd5, 0xd6, 0xd6, 0xd7, 0xd7, 0xd8, 0xd9, 
+	0xd9, 0xda, 0xda, 0xdb, 0xdb, 0xdc, 0xdc, 0xdd, 0xdd, 0xde, 0xdf, 0xdf, 0xe0, 0xe0, 0xe1, 0xe1, 
+	0xe2, 0xe2, 0xe3, 0xe3, 0xe4, 0xe4, 0xe4, 0xe5, 0xe5, 0xe6, 0xe6, 0xe7, 0xe7, 0xe8, 0xe8, 0xe9, 
+	0xe9, 0xe9, 0xea, 0xea, 0xeb, 0xeb, 0xec, 0xec, 0xec, 0xed, 0xed, 0xee, 0xee, 0xee, 0xef, 0xef, 
+	0xef, 0xf0, 0xf0, 0xf1, 0xf1, 0xf1, 0xf2, 0xf2, 0xf2, 0xf3, 0xf3, 0xf3, 0xf4, 0xf4, 0xf4, 0xf4, 
+	0xf5, 0xf5, 0xf5, 0xf6, 0xf6, 0xf6, 0xf7, 0xf7, 0xf7, 0xf7, 0xf8, 0xf8, 0xf8, 0xf8, 0xf9, 0xf9, 
+	0xf9, 0xf9, 0xf9, 0xfa, 0xfa, 0xfa, 0xfa, 0xfa, 0xfb, 0xfb, 0xfb, 0xfb, 0xfb, 0xfc, 0xfc, 0xfc, 
+	0xfc, 0xfc, 0xfc, 0xfc, 0xfd, 0xfd, 0xfd, 0xfd, 0xfd, 0xfd, 0xfd, 0xfd, 0xfe, 0xfe, 0xfe, 0xfe, 
+	0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 
+	0xff, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 
+	0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfd, 0xfd, 0xfd, 0xfd, 0xfd, 0xfd, 0xfd, 0xfd, 0xfc, 0xfc, 0xfc, 
+	0xfc, 0xfc, 0xfc, 0xfc, 0xfb, 0xfb, 0xfb, 0xfb, 0xfb, 0xfa, 0xfa, 0xfa, 0xfa, 0xfa, 0xf9, 0xf9, 
+	0xf9, 0xf9, 0xf9, 0xf8, 0xf8, 0xf8, 0xf8, 0xf7, 0xf7, 0xf7, 0xf7, 0xf6, 0xf6, 0xf6, 0xf5, 0xf5, 
+	0xf5, 0xf4, 0xf4, 0xf4, 0xf4, 0xf3, 0xf3, 0xf3, 0xf2, 0xf2, 0xf2, 0xf1, 0xf1, 0xf1, 0xf0, 0xf0, 
+	0xef, 0xef, 0xef, 0xee, 0xee, 0xee, 0xed, 0xed, 0xec, 0xec, 0xec, 0xeb, 0xeb, 0xea, 0xea, 0xe9, 
+	0xe9, 0xe9, 0xe8, 0xe8, 0xe7, 0xe7, 0xe6, 0xe6, 0xe5, 0xe5, 0xe4, 0xe4, 0xe4, 0xe3, 0xe3, 0xe2, 
+	0xe2, 0xe1, 0xe1, 0xe0, 0xe0, 0xdf, 0xdf, 0xde, 0xdd, 0xdd, 0xdc, 0xdc, 0xdb, 0xdb, 0xda, 0xda, 
+	0xd9, 0xd9, 0xd8, 0xd7, 0xd7, 0xd6, 0xd6, 0xd5, 0xd5, 0xd4, 0xd3, 0xd3, 0xd2, 0xd2, 0xd1, 0xd0, 
+	0xd0, 0xcf, 0xcf, 0xce, 0xcd, 0xcd, 0xcc, 0xcc, 0xcb, 0xca, 0xca, 0xc9, 0xc8, 0xc8, 0xc7, 0xc6, 
+	0xc6, 0xc5, 0xc5, 0xc4, 0xc3, 0xc3, 0xc2, 0xc1, 0xc1, 0xc0, 0xbf, 0xbf, 0xbe, 0xbd, 0xbc, 0xbc, 
+	0xbb, 0xba, 0xba, 0xb9, 0xb8, 0xb8, 0xb7, 0xb6, 0xb6, 0xb5, 0xb4, 0xb3, 0xb3, 0xb2, 0xb1, 0xb1, 
+	0xb0, 0xaf, 0xae, 0xae, 0xad, 0xac, 0xab, 0xab, 0xaa, 0xa9, 0xa8, 0xa8, 0xa7, 0xa6, 0xa6, 0xa5, 
+	0xa4, 0xa3, 0xa3, 0xa2, 0xa1, 0xa0, 0x9f, 0x9f, 0x9e, 0x9d, 0x9c, 0x9c, 0x9b, 0x9a, 0x99, 0x99, 
+	0x98, 0x97, 0x96, 0x96, 0x95, 0x94, 0x93, 0x92, 0x92, 0x91, 0x90, 0x8f, 0x8f, 0x8e, 0x8d, 0x8c, 
+	0x8b, 0x8b, 0x8a, 0x89, 0x88, 0x88, 0x87, 0x86, 0x85, 0x84, 0x84, 0x83, 0x82, 0x81, 0x81, 0x80, 
+	0x7f, 0x7e, 0x7d, 0x7d, 0x7c, 0x7b, 0x7a, 0x7a, 0x79, 0x78, 0x77, 0x76, 0x76, 0x75, 0x74, 0x73, 
+	0x73, 0x72, 0x71, 0x70, 0x6f, 0x6f, 0x6e, 0x6d, 0x6c, 0x6c, 0x6b, 0x6a, 0x69, 0x68, 0x68, 0x67, 
+	0x66, 0x65, 0x65, 0x64, 0x63, 0x62, 0x62, 0x61, 0x60, 0x5f, 0x5f, 0x5e, 0x5d, 0x5c, 0x5b, 0x5b, 
+	0x5a, 0x59, 0x58, 0x58, 0x57, 0x56, 0x56, 0x55, 0x54, 0x53, 0x53, 0x52, 0x51, 0x50, 0x50, 0x4f, 
+	0x4e, 0x4d, 0x4d, 0x4c, 0x4b, 0x4b, 0x4a, 0x49, 0x48, 0x48, 0x47, 0x46, 0x46, 0x45, 0x44, 0x44, 
+	0x43, 0x42, 0x42, 0x41, 0x40, 0x3f, 0x3f, 0x3e, 0x3d, 0x3d, 0x3c, 0x3b, 0x3b, 0x3a, 0x39, 0x39, 
+	0x38, 0x38, 0x37, 0x36, 0x36, 0x35, 0x34, 0x34, 0x33, 0x32, 0x32, 0x31, 0x31, 0x30, 0x2f, 0x2f, 
+	0x2e, 0x2e, 0x2d, 0x2c, 0x2c, 0x2b, 0x2b, 0x2a, 0x29, 0x29, 0x28, 0x28, 0x27, 0x27, 0x26, 0x25, 
+	0x25, 0x24, 0x24, 0x23, 0x23, 0x22, 0x22, 0x21, 0x21, 0x20, 0x1f, 0x1f, 0x1e, 0x1e, 0x1d, 0x1d, 
+	0x1c, 0x1c, 0x1b, 0x1b, 0x1a, 0x1a, 0x1a, 0x19, 0x19, 0x18, 0x18, 0x17, 0x17, 0x16, 0x16, 0x15, 
+	0x15, 0x15, 0x14, 0x14, 0x13, 0x13, 0x12, 0x12, 0x12, 0x11, 0x11, 0x10, 0x10, 0x10, 0x0f, 0x0f, 
+	0x0f, 0x0e, 0x0e, 0x0d, 0x0d, 0x0d, 0x0c, 0x0c, 0x0c, 0x0b, 0x0b, 0x0b, 0x0a, 0x0a, 0x0a, 0x0a, 
+	0x09, 0x09, 0x09, 0x08, 0x08, 0x08, 0x07, 0x07, 0x07, 0x07, 0x06, 0x06, 0x06, 0x06, 0x05, 0x05, 
+	0x05, 0x05, 0x05, 0x04, 0x04, 0x04, 0x04, 0x04, 0x03, 0x03, 0x03, 0x03, 0x03, 0x02, 0x02, 0x02, 
+	0x02, 0x02, 0x02, 0x02, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x02, 0x02, 0x02, 
+	0x02, 0x02, 0x02, 0x02, 0x03, 0x03, 0x03, 0x03, 0x03, 0x04, 0x04, 0x04, 0x04, 0x04, 0x05, 0x05, 
+	0x05, 0x05, 0x05, 0x06, 0x06, 0x06, 0x06, 0x07, 0x07, 0x07, 0x07, 0x08, 0x08, 0x08, 0x09, 0x09, 
+	0x09, 0x0a, 0x0a, 0x0a, 0x0a, 0x0b, 0x0b, 0x0b, 0x0c, 0x0c, 0x0c, 0x0d, 0x0d, 0x0d, 0x0e, 0x0e, 
+	0x0f, 0x0f, 0x0f, 0x10, 0x10, 0x10, 0x11, 0x11, 0x12, 0x12, 0x12, 0x13, 0x13, 0x14, 0x14, 0x15, 
+	0x15, 0x15, 0x16, 0x16, 0x17, 0x17, 0x18, 0x18, 0x19, 0x19, 0x1a, 0x1a, 0x1a, 0x1b, 0x1b, 0x1c, 
+	0x1c, 0x1d, 0x1d, 0x1e, 0x1e, 0x1f, 0x1f, 0x20, 0x21, 0x21, 0x22, 0x22, 0x23, 0x23, 0x24, 0x24, 
+	0x25, 0x25, 0x26, 0x27, 0x27, 0x28, 0x28, 0x29, 0x29, 0x2a, 0x2b, 0x2b, 0x2c, 0x2c, 0x2d, 0x2e, 
+	0x2e, 0x2f, 0x2f, 0x30, 0x31, 0x31, 0x32, 0x32, 0x33, 0x34, 0x34, 0x35, 0x36, 0x36, 0x37, 0x38, 
+	0x38, 0x39, 0x39, 0x3a, 0x3b, 0x3b, 0x3c, 0x3d, 0x3d, 0x3e, 0x3f, 0x3f, 0x40, 0x41, 0x42, 0x42, 
+	0x43, 0x44, 0x44, 0x45, 0x46, 0x46, 0x47, 0x48, 0x48, 0x49, 0x4a, 0x4b, 0x4b, 0x4c, 0x4d, 0x4d, 
+	0x4e, 0x4f, 0x50, 0x50, 0x51, 0x52, 0x53, 0x53, 0x54, 0x55, 0x56, 0x56, 0x57, 0x58, 0x58, 0x59, 
+	0x5a, 0x5b, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f, 0x5f, 0x60, 0x61, 0x62, 0x62, 0x63, 0x64, 0x65, 0x65, 
+	0x66, 0x67, 0x68, 0x68, 0x69, 0x6a, 0x6b, 0x6c, 0x6c, 0x6d, 0x6e, 0x6f, 0x6f, 0x70, 0x71, 0x72, 
+	0x73, 0x73, 0x74, 0x75, 0x76, 0x76, 0x77, 0x78, 0x79, 0x7a, 0x7a, 0x7b, 0x7c, 0x7d, 0x7d, 0x7e
+};
+
+
+
+#define CALCULATE_WAVEFORM(x) ((int)sin_table[x] * power / MAX_SIN)
+
+
+int normalized_power(int motor)
+{
+	int battery = gimbal.battery / FRACTION;
+	int power = gimbal.power[motor];
+	if(battery - gimbal.min_battery > 0)
+	{
+		power = power * 
+			(gimbal.normal_battery - gimbal.min_battery) / 
+			(battery - gimbal.min_battery);
+		CLAMP(power, 0, PWM_PERIOD);
+	}
+	return power;
+}
+
+// write motor phase to hardware
+void write_motor(int number)
+{
+	int index1 = (gimbal.phase[number] * WAVEFORM_SIZE / 360 / FRACTION) % WAVEFORM_SIZE;
+	int index2 = (index1 + 120 * WAVEFORM_SIZE / 360) % WAVEFORM_SIZE;
+	int index3 = (index1 + 240 * WAVEFORM_SIZE / 360) % WAVEFORM_SIZE;
+
+	int power = normalized_power(number);
+//TRACE2
+//print_number(index1);
+//flush_uart();
+	
+	
+	switch(number)
+	{
+		case 0:
+			TIM5->CCR1 = CALCULATE_WAVEFORM(index1);
+			TIM5->CCR2 = CALCULATE_WAVEFORM(index2);
+			TIM5->CCR3 = CALCULATE_WAVEFORM(index3);
+			break;
+		case 1:
+			TIM3->CCR1 = CALCULATE_WAVEFORM(index1);
+			TIM3->CCR2 = CALCULATE_WAVEFORM(index2);
+			TIM3->CCR3 = CALCULATE_WAVEFORM(index3);
+			break;
+		case 2:
+			TIM1->CCR2 = CALCULATE_WAVEFORM(index1);
+			TIM1->CCR3 = CALCULATE_WAVEFORM(index2);
+			TIM1->CCR4 = CALCULATE_WAVEFORM(index3);
+			break;
+	}
+}
+
+static void test_motors()
+{
+	int i = 0, j;
+	int motor = gimbal.heading_motor;
+//	int step = FRACTION / 4;
+	int step = 1;
+	int delay = 1;
+
+	write_motor(0);
+	write_motor(1);
+	write_motor(2);
+
+
+
+	while(1)
+	{
+  		for(i = 0; i < 360 * FRACTION; i += step)
+  		{
+  			gimbal.phase[motor] = i;
+  			write_motor(motor);
+  			udelay(100);
+  		}
+
+  		for(i = 360 * FRACTION; i >= 0; i -= step)
+  		{
+  			gimbal.phase[motor] = i;
+  			write_motor(motor);
+  			udelay(100);
+  		}
+
+/*
+ * 		i += step;
+ * 		i %= 360 * FRACTION;
+ * 		gimbal.phase[motor] = i;
+ * 		write_motor(motor);
+ * 		mdelay(delay);
+ */
+
+/*
+ * 		for(j = 0; j  < 5; j++)
+ * 		{
+ * 			for(i = 0; i < 360; i += step)
+ * 			{
+ * 				gimbal.phase[motor] = i * FRACTION;
+ * 				write_motor(motor);
+ * 				mdelay(delay);
+ * 			}
+ * 		}
+ * 	
+ */
+
+/*
+ * 		for(j = 0; j  < 5; j++)
+ * 		{
+ * 			for(i = 360; i >= 0; i -= step)
+ * 			{
+ * 				gimbal.phase[motor] = i * FRACTION;
+ * 				write_motor(motor);
+ * 				mdelay(delay);
+ * 			}
+ * 		}
+ */
+		
+	}
+}
+
+#define FIX_PHASE(x) \
+	while(x < 0) x += 360 * FRACTION; \
+	x %= 360 * FRACTION;
+
+#define BANDWIDTH 1
+#define TOTAL_THROW_AWAY 4096
+
+void init_analog()
+{
+	gimbal.analog_throw_away = TOTAL_THROW_AWAY;
+
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC1, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC2, ENABLE);
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_ADC3, ENABLE);
+	GPIO_InitTypeDef GPIO_InitStructure;
+
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL ;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2;
+	GPIO_Init(GPIOC, &GPIO_InitStructure);
+
+	ADC_InitTypeDef       ADC_InitStructure;
+	ADC_CommonInitTypeDef ADC_CommonInitStructure;
+	ADC_CommonInitStructure.ADC_Mode = ADC_Mode_Independent;
+	ADC_CommonInitStructure.ADC_Prescaler = ADC_Prescaler_Div8;
+	ADC_CommonInitStructure.ADC_DMAAccessMode = ADC_DMAAccessMode_Disabled;
+	ADC_CommonInitStructure.ADC_TwoSamplingDelay = ADC_TwoSamplingDelay_20Cycles;
+	ADC_CommonInit(&ADC_CommonInitStructure);
+	
+	ADC_StructInit(&ADC_InitStructure);
+	ADC_InitStructure.ADC_Resolution = ADC_Resolution_12b;
+	ADC_InitStructure.ADC_ScanConvMode = DISABLE;
+	ADC_InitStructure.ADC_ContinuousConvMode = DISABLE;
+	ADC_InitStructure.ADC_ExternalTrigConvEdge = ADC_ExternalTrigConvEdge_None;
+	ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
+	ADC_InitStructure.ADC_NbrOfConversion = 1;
+	ADC_Init(ADC1, &ADC_InitStructure);
+	ADC_Init(ADC2, &ADC_InitStructure);
+	ADC_Init(ADC3, &ADC_InitStructure);
+
+	ADC_RegularChannelConfig(ADC1, ADC_Channel_10, 1, ADC_SampleTime_480Cycles);
+	ADC_Cmd(ADC1, ENABLE);
+	ADC_SoftwareStartConv(ADC1);
+
+	ADC_RegularChannelConfig(ADC2, ADC_Channel_11, 1, ADC_SampleTime_480Cycles);
+	ADC_Cmd(ADC2, ENABLE);
+	ADC_SoftwareStartConv(ADC2);
+
+	ADC_RegularChannelConfig(ADC3, ADC_Channel_12, 1, ADC_SampleTime_480Cycles);
+	ADC_Cmd(ADC3, ENABLE);
+	ADC_SoftwareStartConv(ADC3);
+
+}
+
+
+
+void handle_analog()
+{
+	if((ADC1->SR & ADC_FLAG_EOC) != 0)
+	{
+		ADC_ClearFlag(ADC1, ADC_FLAG_EOC);
+		if(gimbal.analog_throw_away > 0)
+		{
+			gimbal.y_stick = ADC1->DR * FRACTION;
+		}
+		else
+		{
+			gimbal.y_stick = (gimbal.y_stick * (FRACTION - BANDWIDTH) +
+				ADC1->DR * FRACTION * BANDWIDTH) / FRACTION;
+		}
+		ADC_SoftwareStartConv(ADC1);
+	}
+	
+	if((ADC2->SR & ADC_FLAG_EOC) != 0)
+	{
+		ADC_ClearFlag(ADC2, ADC_FLAG_EOC);
+		if(gimbal.analog_throw_away > 0)
+		{
+			gimbal.x_stick = ADC2->DR * FRACTION;
+		}
+		else
+		{
+			gimbal.x_stick = (gimbal.x_stick * (FRACTION - BANDWIDTH) +
+				ADC2->DR * FRACTION * BANDWIDTH) / FRACTION;
+		}
+		ADC_SoftwareStartConv(ADC2);
+	}
+	
+	if((ADC3->SR & ADC_FLAG_EOC) != 0)
+	{
+		ADC_ClearFlag(ADC3, ADC_FLAG_EOC);
+		if(gimbal.analog_throw_away > 0)
+		{
+			gimbal.battery = ADC3->DR * FRACTION;
+		}
+		else
+		{
+			gimbal.battery = (gimbal.battery * (FRACTION - BANDWIDTH) +
+				ADC3->DR * FRACTION * BANDWIDTH) / FRACTION;
+		}
+		ADC_SoftwareStartConv(ADC3);
+	}
+
+	if(gimbal.analog_throw_away > 0)
+	{
+		gimbal.analog_throw_away--;
+	}
+}
+
+
+
+static int get_step(pd_table_t *table, int error, int true_rate1, int true_rate2)
+{
+	int rate = error * table->p1 / FRACTION;
+	CLAMP(rate, -gimbal.error_limit, gimbal.error_limit);
+
+	int p_result = (rate - true_rate1) * table->p2 / FRACTION;
+	CLAMP(p_result, -gimbal.rate_limit, gimbal.rate_limit);
+	
+	int d_result = -true_rate2 * table->d2 / FRACTION;
+	CLAMP(d_result, -gimbal.rate_limit, gimbal.rate_limit);
+	
+	int result = p_result + d_result;
+	CLAMP(result, -gimbal.rate_limit, gimbal.rate_limit);
+	return result;
+}
+
+static void feedback()
+{
+	imu1.got_ahrs = 0;
+	int x_error, y_error, z_error;
+	int rate;
+	int step;
+
+	gimbal.stick_counter++;
+	if(gimbal.stick_counter >= gimbal.stick_downsample)
+	{
+		gimbal.stick_counter = 0;
+		int x_stick = gimbal.x_stick / FRACTION;
+		if(x_stick > gimbal.stick_center + gimbal.stick_deadband)
+		{
+			int magnitude = x_stick - gimbal.stick_center - gimbal.stick_deadband;
+			int speed = gimbal.stick_turn_rate * magnitude / (gimbal.stick_mag - gimbal.stick_deadband);
+			gimbal.target_heading += speed;
+			gimbal.target_heading = fix_angle(gimbal.target_heading);
+		}
+		else
+		if(x_stick < gimbal.stick_center - gimbal.stick_deadband)
+		{
+			int magnitude = gimbal.stick_center - gimbal.stick_deadband - x_stick;
+			int speed = gimbal.stick_turn_rate * magnitude / (gimbal.stick_mag - gimbal.stick_deadband);
+			gimbal.target_heading -= speed;
+			gimbal.target_heading = fix_angle(gimbal.target_heading);
+		}
+		
+		
+	}
+
+// Amount yaw motor contributes to roll
+	int yaw_roll_fraction = 1 * FRACTION - (cos_fixed(imu2.current_pitch * 2) + 1 * FRACTION) / 2;
+//	if(imu2.current_pitch < 0) yaw_roll_fraction *= -1;
+
+// Amount yaw motor contributes to pitch
+	int yaw_pitch_fraction = 1 * FRACTION - (cos_fixed(imu2.current_roll * 2) + 1 * FRACTION) / 2;
+//	if(imu2.current_roll > 0) yaw_pitch_fraction *= -1;
+
+
+debug_counter++;
+if(!(debug_counter % 100))
+{
+//TRACE2
+//print_number(normalized_power(0));
+//print_number(normalized_power(1));
+//print_number(normalized_power(2));
+//print_fixed(gimbal.x_stick);
+//print_fixed(gimbal.y_stick);
+//print_fixed(gimbal.battery);
+//print_fixed(gimbal.target_heading);
+//print_fixed(imu2.current_pitch);
+//print_fixed(yaw_roll_fraction);
+//print_fixed(imu2.current_roll);
+//print_fixed(yaw_pitch_fraction);
+}
+
+//yaw_roll_fraction = 0 * FRACTION;
+
+// angle errors at camera
+	x_error = get_angle_change_fixed(imu1.current_roll, gimbal.target_roll);
+	y_error = get_angle_change_fixed(imu1.current_pitch, gimbal.target_pitch);
+	z_error = get_angle_change_fixed(imu1.current_heading, gimbal.target_heading);
+
+
+// get motor steps for heading motor on top
+	int top_x_step = get_step(&gimbal.top_x, 
+		x_error, 
+		imu1.gyro_x / FRACTION, 
+		get_derivative(&gimbal.roll_accel) / FRACTION);
+	int top_y_step = get_step(&gimbal.top_y, 
+		y_error, 
+		imu1.gyro_y / FRACTION, 
+		get_derivative(&gimbal.pitch_accel) / FRACTION);
+	int top_z_step = get_step(&gimbal.top_z, 
+		z_error, 
+		imu1.gyro_z / FRACTION, 
+		get_derivative(&gimbal.heading_accel) / FRACTION);
+
+
+// get motor steps if heading motor behind camera
+	int back_x_step = -get_step(&gimbal.back_x, 
+		z_error, 
+		imu1.gyro_z / FRACTION, 
+		get_derivative(&gimbal.heading_accel) / FRACTION);
+	int back_z_step = get_step(&gimbal.back_z, 
+		x_error, 
+		imu1.gyro_x / FRACTION, 
+		get_derivative(&gimbal.roll_accel) / FRACTION);
+
+
+
+	if(imu2.current_pitch < 0)
+	{
+		back_x_step *= -1;
+		back_z_step *= -1;
+	}
+	
+	
+	int total_y_step = top_y_step;
+// swap yaw & roll motors
+	int total_x_step = ((FRACTION - yaw_roll_fraction) * top_x_step +
+		yaw_roll_fraction * back_x_step) / FRACTION;
+	int total_z_step = ((FRACTION - yaw_roll_fraction) * top_z_step +
+		yaw_roll_fraction * back_z_step) / FRACTION;
+// fade yaw motor as it rolls
+	total_z_step = total_z_step * (FRACTION - yaw_pitch_fraction) / FRACTION;
+
+	if(!gimbal.lock_motors)
+	{
+		gimbal.phase[gimbal.roll_motor] -= total_x_step;
+		gimbal.phase[gimbal.pitch_motor] -= total_y_step;
+		gimbal.phase[gimbal.heading_motor] -= total_z_step;
+
+		FIX_PHASE(gimbal.phase[gimbal.roll_motor]);
+		FIX_PHASE(gimbal.phase[gimbal.pitch_motor]);
+		FIX_PHASE(gimbal.phase[gimbal.heading_motor]);
+	}
+
+	write_motor(0);
+	write_motor(1);
+	write_motor(2);
+
+if(!(debug_counter % 100))
+{
+//TRACE2
+//print_fixed(gimbal.phase[gimbal.heading_motor]);
+//print_fixed(imu1.current_heading);
+//print_fixed(gimbal.target_heading);
+//print_number(-imu1.gyro_y / FRACTION);
+//print_fixed(error);
+//print_number(step);
+}
+
+}
+
+
+void init_pd_table(pd_table_t *ptr, int p1, int p2, int d2)
+{
+	ptr->p1 = p1;
+	ptr->p2 = p2;
+	ptr->d2 = d2;
+}
+
+
+void init_feedback()
+{
+	gimbal.power[gimbal.pitch_motor] = 120;
+	gimbal.power[gimbal.heading_motor] = PWM_PERIOD;
+	gimbal.power[gimbal.roll_motor] = 120;
+
+	init_derivative(&gimbal.roll_accel, 8);
+	init_derivative(&gimbal.pitch_accel, 4);
+	init_derivative(&gimbal.heading_accel, 8);
+
+
+// effect of roll motor on roll
+	init_pd_table(&gimbal.top_x,   1 * FRACTION, 128, 256);
+// effect of pitch motor on pitch
+	init_pd_table(&gimbal.top_y,   1 * FRACTION, 64, 128);
+// effect of yaw motor on yaw
+	init_pd_table(&gimbal.top_z,   1 * FRACTION, 128, 256);
+
+// effect of roll motor on heading
+	init_pd_table(&gimbal.back_x,   1 * FRACTION, 128, 256);
+// effect or yaw motor on roll
+	init_pd_table(&gimbal.back_z,   1 * FRACTION, 128, 256);
+
+	gimbal.error_limit = (16 * FRACTION);
+	gimbal.rate_limit = (16 * FRACTION);
+
+//	init_pd_table(&gimbal.top_x,   1 * FRACTION, 64, 64);
+//	init_pd_table(&gimbal.top_y,   1 * FRACTION, 64, 64);
+//	init_pd_table(&gimbal.top_z,   1 * FRACTION, 64, 128);
+
+//	init_pd_table(&gimbal.back_x,   1 * FRACTION, 64, 128);
+//	init_pd_table(&gimbal.back_z,   1 * FRACTION, 64, 128);
+}
+
+
+void init_motors()
+{
+	int i;
+
+	GPIO_InitTypeDef  GPIO_InitStructure;
+	TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
+	TIM_OCInitTypeDef  TIM_OCInitStructure;
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1, ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM5, ENABLE);
+	
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource0, GPIO_AF_TIM5);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource1, GPIO_AF_TIM5);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource2, GPIO_AF_TIM5);
+	
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource6, GPIO_AF_TIM3);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource7, GPIO_AF_TIM3);
+	GPIO_PinAFConfig(GPIOB, GPIO_PinSource0, GPIO_AF_TIM3);
+	
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource9, GPIO_AF_TIM1);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource10, GPIO_AF_TIM1);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource11, GPIO_AF_TIM1);
+	
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | 
+		GPIO_Pin_1 | 
+		GPIO_Pin_2 | 
+		GPIO_Pin_6 |
+		GPIO_Pin_7 |
+		GPIO_Pin_9 |
+		GPIO_Pin_10 |
+		GPIO_Pin_11;
+	GPIO_ResetBits(GPIOA, GPIO_InitStructure.GPIO_Pin);
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;
+	GPIO_ResetBits(GPIOB, GPIO_InitStructure.GPIO_Pin);
+	GPIO_Init(GPIOB, &GPIO_InitStructure);
+
+
+	TIM_TimeBaseStructure.TIM_Period = PWM_PERIOD;
+	TIM_TimeBaseStructure.TIM_Prescaler = 10;
+	TIM_TimeBaseStructure.TIM_ClockDivision = 0;
+	TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+	TIM_TimeBaseInit(TIM1, &TIM_TimeBaseStructure);
+	TIM_TimeBaseInit(TIM3, &TIM_TimeBaseStructure);
+	TIM_TimeBaseInit(TIM5, &TIM_TimeBaseStructure);
+
+// all motors start as off
+	TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
+	TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
+	TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
+	TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Reset;
+	TIM_OCInitStructure.TIM_Pulse = 0;
+	
+	TIM_OC2Init(TIM1, &TIM_OCInitStructure);
+	TIM_OC3Init(TIM1, &TIM_OCInitStructure);
+	TIM_OC4Init(TIM1, &TIM_OCInitStructure);
+	
+	TIM_OC3Init(TIM3, &TIM_OCInitStructure);
+	TIM_OC1Init(TIM3, &TIM_OCInitStructure);
+	TIM_OC2Init(TIM3, &TIM_OCInitStructure);
+	
+	TIM_OC3Init(TIM5, &TIM_OCInitStructure);
+	TIM_OC1Init(TIM5, &TIM_OCInitStructure);
+	TIM_OC2Init(TIM5, &TIM_OCInitStructure);
+  	
+	TIM_Cmd(TIM1, ENABLE);
+ 	TIM_CtrlPWMOutputs(TIM1, ENABLE);
+  	TIM_Cmd(TIM3, ENABLE);
+ 	TIM_CtrlPWMOutputs(TIM3, ENABLE);
+  	TIM_Cmd(TIM5, ENABLE);
+ 	TIM_CtrlPWMOutputs(TIM5, ENABLE);
+
+
+}
+
+
+
+
+
+
+
+int main()
+{
+	bzero(&gimbal, sizeof(gimbal_t));
+	
+	
+	gimbal.roll_motor = 1;
+	gimbal.pitch_motor = 0;
+	gimbal.heading_motor = 2;
+	gimbal.lock_motors = 0;
+	gimbal.dump_freqs = 0;
+// battery voltage the PWM power is calibrated for
+// 12V
+	gimbal.normal_battery = 2510;
+	gimbal.battery = gimbal.normal_battery * FRACTION;
+// fudge factor to get the current to stay equal for nearby V
+	gimbal.min_battery = -2000;
+	gimbal.stick_center = 2072;
+	gimbal.stick_mag = 2000;
+	gimbal.stick_deadband = 200;
+	gimbal.stick_turn_rate = 90;
+	gimbal.stick_downsample = 10;
+
+	gimbal.feedback_downsample = 1;
+
+
+
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA |
+			RCC_AHB1Periph_GPIOB |
+			RCC_AHB1Periph_GPIOC |
+			RCC_AHB1Periph_GPIOD |
+			RCC_AHB1Periph_GPIOE |
+			RCC_AHB1Periph_CCMDATARAMEN, 
+		ENABLE);
+// general purpose timer
+	TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM10, ENABLE);
+	TIM_DeInit(TIM10);
+	TIM_TimeBaseStructInit(&TIM_TimeBaseStructure);
+	TIM_TimeBaseStructure.TIM_Period = 65535;
+	TIM_TimeBaseStructure.TIM_Prescaler = 8;
+	TIM_TimeBaseStructure.TIM_ClockDivision = 0;
+	TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+	TIM_TimeBaseInit(TIM10, &TIM_TimeBaseStructure);
+	TIM_Cmd(TIM10, ENABLE);
+
+
+
+	init_uart();
+	TRACE
+	print_text("Welcome to gimbal controller\n");
+	flush_uart();
+
+
+	init_analog();	
+	init_motors();
+	init_feedback();
+	init_imu1();
+#if MOTORS == 3
+	init_imu2();
+#endif
+
+	imu1.calibrate_mag = 0;
+	imu2.calibrate_mag = 0;
+	imu1.calibrate_imu = 0;
+	imu2.calibrate_imu = 0;
+
+	if(imu1.calibrate_mag ||
+		imu2.calibrate_mag ||
+		imu1.calibrate_imu ||
+		imu2.calibrate_imu)
+	{
+		gimbal.lock_motors = 1;
+		gimbal.power[gimbal.pitch_motor] = 0;
+		gimbal.power[gimbal.heading_motor] = 0;
+		gimbal.power[gimbal.roll_motor] = 0;
+	}
+	
+	test_motors();
+
+
+	while(1)
+	{
+		if(TIM10->SR & TIM_FLAG_Update)
+		{
+			gimbal.timer++;
+			TIM10->SR = ~TIM_FLAG_Update;
+			
+			if(!(gimbal.timer % 300) && gimbal.dump_freqs)
+			{
+				TRACE2
+				print_text("accel1=");
+				print_number(imu1.total_accel);
+				print_text("mag1=");
+				print_number(imu1.total_mag);
+				print_text("gyro1=");
+				print_number(imu1.total_gyro);
+
+				print_text("accel2=");
+				print_number(imu2.total_accel);
+				print_text("mag2=");
+				print_number(imu2.total_mag);
+				print_text("gyro2=");
+				print_number(imu2.total_gyro);
+
+				imu1.total_accel = imu1.total_mag = imu1.total_gyro = 0;
+				imu2.total_accel = imu2.total_mag = imu2.total_gyro = 0;
+			}
+		}
+
+
+		if((ADC1->SR & ADC_FLAG_EOC) != 0 ||
+			(ADC2->SR & ADC_FLAG_EOC) != 0 ||
+			(ADC3->SR & ADC_FLAG_EOC) != 0)
+		{
+			handle_analog();
+		}
+
+
+		HANDLE_IMU(imu1);
+
+#if MOTORS == 3
+		HANDLE_IMU(imu2);
+#endif
+
+		if(imu1.got_ahrs && imu2.have_gyro_center)
+		{
+			update_derivative(&gimbal.roll_accel, imu1.gyro_x);
+			update_derivative(&gimbal.pitch_accel, imu1.gyro_y);
+			update_derivative(&gimbal.heading_accel, imu1.gyro_z);
+		
+		
+			gimbal.feedback_counter++;
+			if(gimbal.feedback_counter >= gimbal.feedback_downsample)
+			{
+				gimbal.feedback_counter = 0;
+				feedback();
+			}
+		}
+
+		handle_uart();
+	}
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

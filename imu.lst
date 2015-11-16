@@ -1,0 +1,4209 @@
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE  1
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00001 ; 18f14k50
+               00002 ; ../copter/usb_programmer -p 18f14k50 -e
+               00003 ; internal + PLL
+               00004 ; ../copter/usb_programmer -p 18f14k50 -c 0x300000 0011100000000000
+               00005 ; watchdog & brownout
+               00006 ; ../copter/usb_programmer -p 18f14k50 -c 0x300002 0001111100011110
+               00007 ; disable PGM & extended instructions
+               00008 ; ../copter/usb_programmer -p 18f14k50 -c 0x300006 0000000000000000
+               00009 ; rm imu.hex.orig;../copter/usb_programmer -p 18f14k50 imu.hex
+               00010 ; ../copter/usb_programmer -p 18f14k50 -r imu.hex
+               00011 
+               00012 
+               00013 
+               00014 ; IDG3200 + KXTF9 driver on a standalone board
+               00015 ; requires power cycling for the I2C peripherals to work
+               00016 
+               00017 
+               00018 PROCESSOR 18f14k50
+               00019 #include "p18f14k50.inc"
+               00001         LIST
+               00002 
+               00003 ;==========================================================================
+               00004 ;  MPASM PIC18F14K50 processor include
+               00005 ; 
+               00006 ;  (c) Copyright 1999-2008 Microchip Technology, All rights reserved
+               00007 ;==========================================================================
+               00008 
+               01461         LIST
+               00020 #include "util.inc"
+               00001 #ifndef PIC_UTIL_INC
+0000 00002 #define PIC_UTIL_INC
+               00003 
+               00004 ;#include "bootloader.h"
+               00005 
+               00006 ; all numbers default to base 10
+               00007         RADIX DEC
+               00008 
+0000 00009 #define RESETVECTOR     0x0000
+0000 00010 #define INTVECTORHI     0x0008
+0000 00011 #define INTVECTORLO     0x0018
+               00012 
+               00013 ; the highest byte the bootloader can access.  The top of the "access bank".
+               00014 ifdef __18F2450
+               00015 BOOTLOADER_BASE = H'5f'
+               00016 endif
+               00017 ifdef __18F458
+               00018 BOOTLOADER_BASE = H'5f'
+               00019 endif
+               00020 ifdef __18F4580
+               00021 BOOTLOADER_BASE = H'5f'
+               00022 endif
+               00023 ifdef __18F1320
+               00024 BOOTLOADER_BASE = H'7f'
+               00025 endif
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE  2
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00026 
+               00027 ; the pins change if PORTB is used for sonar
+               00028 ; the pin used for the program clock
+0000 00029 #define BOOTLOADER_PGC PORTB, D'6'
+               00030 ; the pin used for the program data
+0000 00031 #define BOOTLOADER_PGD PORTB, D'7'
+               00032 ; the pin used for the program data direction
+0000 00033 #define BOOTLOADER_PGD_DIR TRISB, D'7'
+               00034 
+               00035 
+0000 00036 #define POINTER0 FSR0L
+0000 00037 #define POINTER1 FSR1L
+0000 00038 #define POINTER2 FSR2L
+               00039 
+               00040 
+               00041 
+               00042 VARSTART macro MSTART, MEND
+               00043 VARCURRENT SET MSTART
+               00044 VAREND SET MEND
+               00045         ENDM
+               00046 
+               00047 VARADD macro VARNAME, SIZE
+               00048         IF (VARCURRENT + SIZE > VAREND)
+               00049                 ERROR "Too many variables for allocated file registers"
+               00050         ENDIF
+               00051 VARNAME EQU VARCURRENT
+               00052 VARCURRENT SET VARCURRENT + SIZE
+               00053         ENDM
+               00054 
+               00055 
+               00056 
+               00057 
+               00058 ; set flash pointer to literal
+               00059 SET_FLASH_LITERAL macro reg
+               00060         clrf TBLPTRU
+               00061         movlw HIGH(reg)
+               00062         movwf TBLPTRH
+               00063         movlw LOW(reg)
+               00064         movwf TBLPTRL
+               00065         ENDM
+               00066 
+               00067 ; set flash pointer to reg
+               00068 SET_FLASH_REG macro reg
+               00069         clrf TBLPTRU
+               00070         movf reg + 1, W
+               00071         movwf TBLPTRH
+               00072         movf reg, W
+               00073         movwf TBLPTRL
+               00074         ENDM
+               00075 
+               00076 ; copy the 16 bit register to the program counter
+               00077 SET_PC_REG macro reg
+               00078         movff reg + 1, PCLATH
+               00079         movf reg, W
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00080         movwf PCL
+               00081         ENDM
+               00082 
+               00083 ; set pointer0 to the register address
+               00084 SET_POINTER0_LITERAL macro reg
+               00085         lfsr 0, reg
+               00086         ENDM
+               00087 
+               00088 ; set pointer0 to the contents of the register
+               00089 SET_POINTER0_REG macro reg
+               00090         movff reg, FSR0L
+               00091         movff reg + 1, FSR0H
+               00092         ENDM
+               00093 
+               00094 ; set pointer0 to the contents of the register
+               00095 SET_POINTER1_REG macro reg
+               00096         movff reg, FSR1L
+               00097         movff reg + 1, FSR1H
+               00098         ENDM
+               00099 
+               00100 ; set pointer2 to the contents of the register
+               00101 SET_POINTER2_REG macro reg
+               00102         movff reg, FSR2L
+               00103         movff reg + 1, FSR2H
+               00104         ENDM
+               00105 
+               00106 ; set pointer1 to point to the register
+               00107 SET_POINTER1_LITERAL macro reg
+               00108         lfsr 1, reg
+               00109         ENDM
+               00110 
+               00111 ; set pointer1 to point to the register
+               00112 SET_POINTER2_LITERAL macro reg
+               00113         lfsr 2, reg
+               00114         ENDM
+               00115 
+               00116 ; data for the 18f1220 stores a 16 bit value
+               00117 DATA_BE macro word1, word2
+               00118         DATA word1
+               00119         DATA word2
+               00120         ENDM
+               00121 
+               00122 SET_REGISTER macro reg, literal
+               00123         movlw literal
+               00124         movwf reg
+               00125         ENDM
+               00126 
+               00127 SET_REGISTER16 macro reglo, literal
+               00128         movlw LOW(literal)
+               00129         movwf reglo
+               00130         movlw HIGH(literal)
+               00131         movwf reglo + 1
+               00132         ENDM
+               00133 
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00134 SET_POSTINC16 macro ptr, literal
+               00135         movlw LOW(literal)
+               00136         movwf ptr
+               00137         movlw HIGH(literal)
+               00138         movwf ptr
+               00139         ENDM
+               00140 
+               00141 ; timer must be written high byte first or the high byte will be discarded
+               00142 SET_TIMER_REGISTER macro reglo, literal
+               00143         movlw HIGH(literal)
+               00144         movwf reglo + 1
+               00145         movlw LOW(literal)
+               00146         movwf reglo
+               00147         ENDM
+               00148 
+               00149 ; the assembler doesn't seem to take 32 bit literals so we
+               00150 ; split the literal into shorts for this one
+               00151 SET_REGISTER24 macro reglo, literal23_16, literal15_0
+               00152         movlw LOW(literal15_0)
+               00153         movwf reglo
+               00154         movlw HIGH(literal15_0)
+               00155         movwf reglo + 1
+               00156         movlw literal23_16
+               00157         movwf reglo + 2
+               00158         ENDM
+               00159 
+               00160 ; the assembler doesn't seem to take 32 bit literals so we
+               00161 ; split the literal into shorts for this one
+               00162 SET_REGISTER32 macro reglo, literal31_16, literal15_0
+               00163         movlw LOW(literal15_0)
+               00164         movwf reglo
+               00165         movlw HIGH(literal15_0)
+               00166         movwf reglo + 1
+               00167         movlw LOW(literal31_16)
+               00168         movwf reglo + 2
+               00169         movlw HIGH(literal31_16)
+               00170         movwf reglo + 3
+               00171         ENDM
+               00172 
+               00173 ; the assembler doesn't seem to take 32 bit literals so we
+               00174 ; split the literal into shorts for this one
+               00175 SET_REGISTER48 macro reglo, literal47_32, literal31_16, literal15_0
+               00176         movlw HIGH(literal47_32)
+               00177         movwf reglo + D'5'
+               00178         movlw LOW(literal47_32)
+               00179         movwf reglo + 4
+               00180         movlw HIGH(literal31_16)
+               00181         movwf reglo + 3
+               00182         movlw LOW(literal31_16)
+               00183         movwf reglo + 2
+               00184         movlw HIGH(literal15_0)
+               00185         movwf reglo + 1
+               00186         movlw LOW(literal15_0)
+               00187         movwf reglo
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE  5
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00188         ENDM
+               00189 
+               00190 ; the assembler doesn't seem to take 32 bit literals so we
+               00191 ; split the literal into shorts for this one
+               00192 SET_REGISTER64 macro reglo, literal63_48, literal47_32, literal31_16, literal15_0
+               00193         movlw LOW(literal15_0)
+               00194         movwf reglo
+               00195         movlw HIGH(literal15_0)
+               00196         movwf reglo + 1
+               00197         movlw LOW(literal31_16)
+               00198         movwf reglo + 2
+               00199         movlw HIGH(literal31_16)
+               00200         movwf reglo + 3
+               00201         movlw LOW(literal47_32)
+               00202         movwf reglo + 4
+               00203         movlw HIGH(literal47_32)
+               00204         movwf reglo + D'5'
+               00205         movlw LOW(literal63_48)
+               00206         movwf reglo + D'6'
+               00207         movlw HIGH(literal63_48)
+               00208         movwf reglo + D'7'
+               00209         ENDM
+               00210 
+               00211 CLEAR_REGISTER48 macro reglo
+               00212         clrf reglo
+               00213         clrf reglo + 1
+               00214         clrf reglo + 2
+               00215         clrf reglo + 3
+               00216         clrf reglo + 4
+               00217         clrf reglo + D'5'
+               00218         ENDM
+               00219 
+               00220 CLEAR_REGISTER32 macro reglo
+               00221         clrf reglo
+               00222         clrf reglo + 1
+               00223         clrf reglo + 2
+               00224         clrf reglo + 3
+               00225         ENDM
+               00226 
+               00227 CLEAR_REGISTER24 macro reglo
+               00228         clrf reglo
+               00229         clrf reglo + 1
+               00230         clrf reglo + 2
+               00231         ENDM
+               00232 
+               00233 CLEAR_REGISTER16 macro reglo
+               00234         clrf reglo
+               00235         clrf reglo + 1
+               00236         ENDM
+               00237 
+               00238 CLEAR_POINTER16 macro reglo
+               00239         clrf reglo
+               00240         clrf reglo
+               00241         ENDM
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE  6
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00242 
+               00243 CLEAR_POSTINC32 macro reglo
+               00244         clrf reglo
+               00245         clrf reglo
+               00246         clrf reglo
+               00247         clrf reglo
+               00248         ENDM
+               00249 
+               00250 ; clear a timer register
+               00251 CLEAR_TIMER_REGISTER macro reglo
+               00252         clrf reglo + 1
+               00253         clrf reglo
+               00254         ENDM
+               00255 
+               00256 ; set to full positive
+               00257 MAX_REGISTER16 macro reglo
+               00258         setf reglo
+               00259         setf reglo + 1
+               00260         ENDM
+               00261 
+               00262 ; increment register by 1 without changing status bits
+               00263 INC_REGISTER macro reg
+               00264         movf STATUS, W        ; store carry bit
+               00265         incf reg, F
+               00266         movwf STATUS          ; retrieve carry bit
+               00267         ENDM
+               00268 
+               00269 
+               00270 ; increment 16 bit register
+               00271 INC16 macro reg
+               00272         infsnz reg, F
+               00273         incf reg + 1, F
+               00274         ENDM
+               00275 
+               00276 DEC16 macro reg
+               00277         decf reg, F
+               00278         btfss STATUS, C
+               00279         decf reg + 1, F
+               00280         ENDM
+               00281 
+               00282 ; these may not be used with POSTINC*
+               00283 ; copy value of src register to dst register
+               00284 COPY_REGISTER64 macro dst, src
+               00285         movff src, dst
+               00286         movff src + 1, dst + 1
+               00287         movff src + 2, dst + 2
+               00288         movff src + 3, dst + 3
+               00289         movff src + 4, dst + 4
+               00290         movff src + D'5', dst + D'5'
+               00291         movff src + D'6', dst + D'6'
+               00292         movff src + D'7', dst + D'7'
+               00293         ENDM
+               00294 
+               00295 COPY_REGISTER32 macro dst, src
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE  7
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00296         movff src, dst
+               00297         movff src + 1, dst + 1
+               00298         movff src + 2, dst + 2
+               00299         movff src + 3, dst + 3
+               00300         ENDM
+               00301 
+               00302 ; copy value of src register to dst register
+               00303 COPY_REGISTER16 macro dst, src
+               00304         movff src, dst
+               00305         movff src + 1, dst + 1
+               00306         ENDM;
+               00307 
+               00308 ; copy value of src postinc pointer to dst postinc pointer
+               00309 COPY_POINTER16 macro dst, src
+               00310         movff src, dst
+               00311         movff src, dst
+               00312         ENDM;
+               00313 
+               00314 ; copy value of postinc pointer to dst
+               00315 COPY_REG16_POSTINC16 macro dst, ptr
+               00316         movff ptr, dst
+               00317         movff ptr, dst + 1
+               00318         ENDM;
+               00319 
+               00320 ; copy value of postinc pointer to dst
+               00321 COPY_REG24_PTR24 macro dst, ptr
+               00322         movff ptr, dst
+               00323         movff ptr, dst + 1
+               00324         movff ptr, dst + 2
+               00325         ENDM
+               00326 
+               00327 ; copy value of src to dst postinc pointer
+               00328 COPY_POSTINC16_REG16 macro ptr, src
+               00329         movff src, ptr
+               00330         movff src + 1, ptr
+               00331         ENDM
+               00332 
+               00333 ; copy value of src to dst postinc pointer
+               00334 COPY_POSTINC32_REG32 macro ptr, src
+               00335         movff src, ptr
+               00336         movff src + 1, ptr
+               00337         movff src + 2, ptr
+               00338         movff src + 3, ptr
+               00339         ENDM
+               00340 
+               00341 ; copy value of postinc pointer to dst 
+               00342 COPY_REG32_POSTINC32 macro dst, ptr
+               00343         movff ptr, dst
+               00344         movff ptr, dst + 1
+               00345         movff ptr, dst + 2
+               00346         movff ptr, dst + 3
+               00347         ENDM
+               00348 
+               00349 ; copy value of src register to dst register
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE  8
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00350 COPY_REGISTER macro dst, src
+               00351         movff src, dst
+               00352         ENDM
+               00353 
+               00354 
+               00355 
+               00356 ; movff doesn't work with SSPBUF
+               00357 COPY_REGISTER_SSP macro dst, src
+               00358         movf src, W
+               00359         movwf dst
+               00360         ENDM
+               00361 
+               00362 
+               00363 
+               00364 
+               00365 ; want only 1 write to the destination register
+               00366 COPY_BIT macro dst_reg, dst_bit, src_reg, src_bit
+               00367         btfsc src_reg, src_bit
+               00368         bsf dst_reg, dst_bit
+               00369         btfss src_reg, src_bit
+               00370         bcf dst_reg, dst_bit
+               00371         ENDM
+               00372 
+               00373 
+               00374 ; copy value of src register to dst register starting with the high byte
+               00375 ; required when setting timers
+               00376 ; reading timers requires copying the low byte first
+               00377 COPY_TO_TIMER macro dst, src
+               00378         movff src + 1, dst + 1
+               00379         movff src, dst
+               00380         ENDM
+               00381 
+               00382 POSTDEC_TO_TIMER macro dst, src
+               00383         movff src, dst + 1
+               00384         movff src, dst
+               00385         ENDM
+               00386 
+               00387 ; multiply 8 bit register by 8 bit literal and store in 16 bit dst
+               00388 MULTIPLY_LITERAL macro dst, reg, literal
+               00389         movlw literal
+               00390         mulwf reg
+               00391         COPY_REGISTER16 dst, PRODL
+               00392         ENDM
+               00393 
+               00394 ; multiply 16 bit POSTINC pointer by 8 bit literal and store in 24 bit dst
+               00395 MULTIPLY_PTR16_LITERAL8 macro dst, ptr, literal
+               00396         clrf dst + 2
+               00397         movlw literal
+               00398         mulwf ptr
+               00399         COPY_REGISTER16 dst, PRODL
+               00400         movlw literal
+               00401         mulwf ptr
+               00402         ADD16 dst + 1, PRODL
+               00403         ENDM
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE  9
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00404 
+               00405 ; multiply 16 bit register by 8 bit literal and store in 24 bit dst
+               00406 MULTIPLY_REG16_LITERAL8 macro dst, reg, literal
+               00407         clrf dst + 2
+               00408         movlw literal
+               00409         mulwf reg
+               00410         COPY_REGISTER16 dst, PRODL
+               00411         movlw literal
+               00412         mulwf reg + 1
+               00413         ADD16 dst + 1, PRODL
+               00414         ENDM
+               00415 
+               00416 ; multiply 16 bit unsigned reg1 by 8 bit reg2 and store in 24 bit dst
+               00417 MULTIPLY_REG16_REG8 macro dst, reg1, reg2
+               00418         clrf dst + 2
+               00419 
+               00420         movf reg2, W
+               00421         mulwf reg1
+               00422         COPY_REGISTER16 dst, PRODL
+               00423 
+               00424         mulwf reg1 + 1
+               00425         ADD16 dst + 1, PRODL
+               00426         ENDM
+               00427 
+               00428 ; multiply signed 16 bit register by 8 bit literal and store in 24 bit dst
+               00429 ; overwrites TEMP5
+               00430 MULTIPLY_SIGNED_REG16_LITERAL8 macro dst, reg, literal
+               00431         clrf dst + 2
+               00432         movlw literal
+               00433         mulwf reg
+               00434         COPY_REGISTER16 dst, PRODL
+               00435         movlw literal
+               00436         mulwf reg + 1
+               00437         ADD16 dst + 1, PRODL
+               00438 
+               00439 ; carry sign to extra byte.  Use PRODL as temporary input.
+               00440         clrf TEMP5
+               00441         btfsc reg + 1, 7
+               00442         setf TEMP5
+               00443         movlw literal
+               00444         mulwf TEMP5
+               00445         ADD dst + 2, PRODL
+               00446         ENDM
+               00447 
+               00448 
+               00449 ; Multiply 24 bit register by 8 bit literal and store in 32 bit dst
+               00450 MULTIPLY_REG24_LITERAL8 macro dst, reg, literal
+               00451         clrf dst + 2
+               00452         clrf dst + 3
+               00453         movlw literal
+               00454         mulwf reg
+               00455         COPY_REGISTER16 dst, PRODL
+               00456         movlw literal
+               00457         mulwf reg + 1
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 10
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00458         ADD16 dst + 1, PRODL
+               00459         movlw literal
+               00460         mulwf reg + 2
+               00461         ADD16 dst + 2, PRODL
+               00462         ENDM
+               00463 
+               00464 ; multiply 32 bit POSTINC pointer by 8 bit literal and store in 40 bit dst
+               00465 MULTIPLY_PTR32_LITERAL8 macro dst, ptr, literal
+               00466 ; speed up calculation
+               00467         clrf dst + 2
+               00468         clrf dst + 3
+               00469         clrf dst + 4
+               00470 ; multiply byte 0
+               00471         movlw literal
+               00472         mulwf ptr
+               00473         COPY_REGISTER16 dst, PRODL
+               00474 ; multiply byte 1
+               00475         movlw literal
+               00476         mulwf ptr
+               00477         ADD16 dst + 1, PRODL
+               00478 ; multiply byte 2
+               00479         movlw literal
+               00480         mulwf ptr
+               00481         ADD16 dst + 2, PRODL
+               00482 ; multiply byte 3
+               00483         movlw literal
+               00484         mulwf ptr
+               00485         ADD16 dst + 3, PRODL
+               00486         ENDM
+               00487 
+               00488 ; multiply 32 bit POSTINC pointer by 8 bit reg and store in 40 bit dst
+               00489 MULTIPLY_PTR32_REG8 macro dst, ptr, reg
+               00490 ; speed up calculation
+               00491         clrf dst + 2
+               00492         clrf dst + 3
+               00493         clrf dst + 4
+               00494 ; multiply byte 0
+               00495         movf reg, W
+               00496         mulwf ptr
+               00497         COPY_REGISTER16 dst, PRODL
+               00498 ; multiply byte 1
+               00499         movf reg, W
+               00500         mulwf ptr
+               00501         ADD16 dst + 1, PRODL
+               00502 ; multiply byte 2
+               00503         movf reg, W
+               00504         mulwf ptr
+               00505         ADD16 dst + 2, PRODL
+               00506 ; multiply byte 3
+               00507         movf reg, W
+               00508         mulwf ptr
+               00509         ADD16 dst + 3, PRODL
+               00510         ENDM
+               00511 
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 11
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00512 ; multiply 32 bit register by 8 bit literal and store in 40 bit dst
+               00513 MULTIPLY_REG32_LITERAL8 macro dst, reg, literal
+               00514         clrf dst + 2
+               00515         clrf dst + 3
+               00516         clrf dst + 4
+               00517 ; multiply byte 0
+               00518         movlw literal
+               00519         mulwf reg
+               00520         COPY_REGISTER16 dst, PRODL
+               00521 ; multiply byte 1
+               00522         movlw literal
+               00523         mulwf reg + 1
+               00524         ADD16 dst + 1, PRODL
+               00525 ; multiply byte 2
+               00526         movlw literal
+               00527         mulwf reg + 2
+               00528         ADD16 dst + 2, PRODL
+               00529 ; multiply byte 3
+               00530         movlw literal
+               00531         mulwf reg + 3
+               00532         ADD16 dst + 3, PRODL
+               00533         ENDM
+               00534 
+               00535 ; divide by 2
+               00536 DIVIDE_REG32 macro reg
+               00537         bcf STATUS, C
+               00538         rrcf reg + 3, F
+               00539         rrcf reg + 2, F
+               00540         rrcf reg + 1, F
+               00541         rrcf reg + 0, F
+               00542         ENDM
+               00543 
+               00544 
+               00545 AND_LITERAL macro reg, literal
+               00546         movlw literal
+               00547         andwf reg, F
+               00548         ENDM
+               00549 
+               00550 AND_REG macro reg1, reg2
+               00551         movf reg2, W
+               00552         andwf reg1, F
+               00553         ENDM
+               00554 
+               00555 
+               00556 
+               00557 OR_LITERAL macro reg, literal
+               00558         movlw literal
+               00559         iorwf reg, F
+               00560         ENDM
+               00561 
+               00562 XOR_LITERAL macro reg, literal
+               00563         movlw literal
+               00564         xorwf reg, F
+               00565         ENDM
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 12
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00566 
+               00567 XOR_REG macro reg1, reg2
+               00568         movf reg2, W
+               00569         xorwf reg1, F
+               00570         ENDM
+               00571 
+               00572 OR_REG macro reg1, reg2
+               00573         movf reg2, W
+               00574         iorwf reg1, F
+               00575         ENDM
+               00576 
+               00577 
+               00578 ; adds the src bit to the destination bit
+               00579 ; in other words, if the src bit is 1, the destination bit is toggled
+               00580 ADD_BIT macro dst_reg, dst_bit, src_reg, src_bit
+               00581         btfsc src_reg, src_bit
+               00582         btg dst_reg, dst_bit
+               00583         ENDM
+               00584 
+               00585 ; add literal to register and store in register
+               00586 ADD_LITERAL macro reg, literal
+               00587         movlw literal
+               00588         addwf reg, F
+               00589         ENDM
+               00590 
+               00591 ; add reg1 to reg2 and store in reg1
+               00592 ADD macro reg1, reg2
+               00593         movf reg2, W
+               00594         addwf reg1, F
+               00595         ENDM
+               00596 
+               00597 ; add reg1 to reg2 and store in dst
+               00598 ADD_DST macro dst, reg1, reg2
+               00599         movf reg2, W
+               00600         addwf reg1, W
+               00601         movwf dst
+               00602         ENDM
+               00603 
+               00604 ; add reg1 to literal and store in dst
+               00605 ADD_DST_LITERAL macro dst, reg1, literal
+               00606         movlw literal
+               00607         addwf reg1, W
+               00608         movwf dst
+               00609         ENDM
+               00610 
+               00611 ; add 16 bit registers
+               00612 ADD16 macro dstlo, srclo
+               00613         movf srclo, W
+               00614         addwf dstlo, F
+               00615         movf srclo + 1, W
+               00616         addwfc dstlo + 1, F
+               00617         ENDM
+               00618 
+               00619 ; add signed reg8 to reg16
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 13
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00620 ADD_REG16_REG8 macro reg16, reg8
+               00621         movf reg8, W
+               00622         addwf reg16, F
+               00623 ; carry sign bit
+               00624         movlw 0
+               00625         btfsc reg8, 7
+               00626                 movlw H'ff'
+               00627         addwfc reg16 + 1, F
+               00628         ENDM
+               00629 
+               00630 ; add unsigned reg8 to reg16
+               00631 ADD_REG16_UNSIGNEDREG8 macro reg16, reg8
+               00632         movf reg8, W
+               00633         addwf reg16, F
+               00634 ; carry sign bit
+               00635         movlw 0
+               00636         addwfc reg16 + 1, F
+               00637         ENDM
+               00638 
+               00639 ; add 16 bit postinc pointer to register
+               00640 ADD16_POSTINC macro dstlo, ptr
+               00641         movf ptr, W
+               00642         addwf dstlo, F
+               00643         movf ptr, W
+               00644         addwfc dstlo + 1, F
+               00645         ENDM
+               00646 
+               00647 ; add 16 bit registers & store in dst
+               00648 ADD_DST16_REG16_REG16 macro dst, src1, src2
+               00649         movf src2, W
+               00650         addwf src1, W
+               00651         movwf dst
+               00652         movf src2 + 1, W
+               00653         addwfc src1 + 1, W
+               00654         movwf dst + 1
+               00655         ENDM
+               00656 
+               00657 ; add 16 bit register, 16 bit literal & store in dst
+               00658 ADD_DST16_REG16_LITERAL16 macro dst, src1, literal
+               00659         movlw LOW(literal)
+               00660         addwf src1, W
+               00661         movwf dst
+               00662         movlw HIGH(literal)
+               00663         addwfc src1 + 1, W
+               00664         movwf dst + 1
+               00665         ENDM
+               00666 
+               00667 ; add 24 bit registers
+               00668 ADD24 macro dstlo, srclo
+               00669         movf srclo, W
+               00670         addwf dstlo, F
+               00671 
+               00672         movf srclo + 1, W
+               00673         addwfc dstlo + 1, F
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 14
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00674 
+               00675         movf srclo + 2, W
+               00676         addwfc dstlo + 2, F
+               00677         ENDM
+               00678 
+               00679 ; add 16 bit register to literal
+               00680 ADD_LITERAL16 macro dstlo, literal
+               00681         movlw LOW(literal)
+               00682         addwf dstlo, F
+               00683         movlw HIGH(literal)
+               00684         addwfc dstlo + 1, F
+               00685         ENDM
+               00686 
+               00687 ; add 32 bit literal to 32 bit register
+               00688 ADD_LITERAL32 macro reg, literalhi, literallo
+               00689         movlw LOW(literallo)
+               00690         addwf reg, F
+               00691         movlw HIGH(literallo)
+               00692         addwfc reg + 1, F
+               00693         movlw LOW(literalhi)
+               00694         addwfc reg + 2, F
+               00695         movlw HIGH(literalhi)
+               00696         addwfc reg + 3, F
+               00697         ENDM
+               00698 
+               00699 
+               00700 ; add 32 bit register to 32 bit register
+               00701 ADD32 macro dstlo, srclo
+               00702         movf srclo, W
+               00703         addwf dstlo, F
+               00704         movf srclo + 1, W
+               00705         addwfc dstlo + 1, F
+               00706         movf srclo + 2, W
+               00707         addwfc dstlo + 2, F
+               00708         movf srclo + 3, W
+               00709         addwfc dstlo + 3, F
+               00710         ENDM
+               00711 
+               00712 ; add signed 16 bit register to 32 bit register
+               00713 ADD_REG32_REG16 macro dstlo, srclo
+               00714         movf srclo, W
+               00715         addwf dstlo, F
+               00716         movf srclo + 1, W
+               00717         addwfc dstlo + 1, F
+               00718 ; carry sign bit
+               00719         movlw 0
+               00720         btfsc srclo + 1, 7
+               00721                 movlw H'ff'
+               00722         addwfc dstlo + 2, F
+               00723         addwfc dstlo + 3, F
+               00724         ENDM
+               00725 
+               00726 ; add unsigned 16 bit register to 32 bit register
+               00727 ADD_REG32_UNSIGNEDREG16 macro dstlo, srclo
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 15
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00728         movf srclo, W
+               00729         addwf dstlo, F
+               00730         movf srclo + 1, W
+               00731         addwfc dstlo + 1, F
+               00732         movlw 0
+               00733         addwfc dstlo + 2, F
+               00734         addwfc dstlo + 3, F
+               00735         ENDM
+               00736 
+               00737 ; add signed 16 bit register to 24 bit register
+               00738 ADD_REG24_REG16 macro dstlo, srclo
+               00739         movf srclo, W
+               00740         addwf dstlo, F
+               00741         movf srclo + 1, W
+               00742         addwfc dstlo + 1, F
+               00743 ; carry sign bit
+               00744         movlw 0
+               00745         btfsc srclo + 1, 7
+               00746                 movlw H'ff'
+               00747         addwfc dstlo + 2, F
+               00748         ENDM
+               00749 
+               00750 ADD_REG24_REG24_REG24 macro DST, SRC1, SRC2
+               00751         movf SRC2, W
+               00752         addwf SRC1, W
+               00753         movwf DST
+               00754         
+               00755         movf SRC2 + 1, W
+               00756         addwfc SRC1 + 1, W
+               00757         movwf DST + 1
+               00758 
+               00759         movf SRC2 + 2, W
+               00760         addwfc SRC1 + 2, W
+               00761         movwf DST + 2
+               00762         ENDM
+               00763 
+               00764 
+               00765 ; add unsigned reg8 to reg24
+               00766 ADD_REG24_UNSIGNEDREG8 macro reg24, reg8
+               00767         movf reg8, W
+               00768         addwf reg24, F
+               00769 ; carry sign bit
+               00770         movlw 0
+               00771         addwfc reg24 + 1, F
+               00772         addwfc reg24 + 2, F
+               00773         ENDM
+               00774 
+               00775 ; add 40 bit register to 40 bit register
+               00776 ADD40 macro dstlo, srclo
+               00777         movf srclo, W
+               00778         addwf dstlo, F
+               00779         movf srclo + 1, W
+               00780         addwfc dstlo + 1, F
+               00781         movf srclo + 2, W
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 16
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00782         addwfc dstlo + 2, F
+               00783         movf srclo + 3, W
+               00784         addwfc dstlo + 3, F
+               00785         movf srclo + 4, W
+               00786         addwfc dstlo + 4, F
+               00787         ENDM
+               00788 
+               00789 
+               00790 
+               00791 
+               00792 ; subtract reg2 from reg1 and store result in reg1
+               00793 SUBTRACT macro reg1, reg2
+               00794         movf reg2, W
+               00795         subwf reg1, F
+               00796         ENDM
+               00797 
+               00798 ; subtract reg2 from reg1 and store result in reg1
+               00799 SUBTRACT_REGISTER macro reg1, reg2
+               00800         movf reg2, W
+               00801         subwf reg1, F
+               00802         ENDM
+               00803 
+               00804 ; dst = reg1 - reg2
+               00805 SUBTRACT_DST_REG macro dst, reg1, reg2
+               00806         movf reg2, W
+               00807         subwf reg1, W
+               00808         movwf dst
+               00809         ENDM
+               00810 
+               00811 ; subtract literal from register and store result in register
+               00812 SUBTRACT_LITERAL macro reg, literal
+               00813         movlw literal
+               00814         subwf reg, F
+               00815         ENDM
+               00816 
+               00817 ; subtract literal from register and store result in register
+               00818 SUBTRACT_DST_LITERAL macro dst, reg, literal
+               00819         movlw literal
+               00820         subwf reg, W
+               00821         movwf dst
+               00822         ENDM
+               00823 
+               00824 ; subtract 16 bit register srclo from dstlo and store result in dstlo
+               00825 SUBTRACT16 macro dstlo, srclo
+               00826         movf srclo, W
+               00827         subwf dstlo, F
+               00828         movf srclo + 1, W
+               00829         subwfb dstlo + 1, F
+               00830         ENDM
+               00831 
+               00832 ; subtract literal from register and store result in register
+               00833 SUBTRACT_DST16_LITERAL16 macro dst, reg, literal
+               00834         movlw LOW(literal)
+               00835         subwf reg, W
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 17
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00836         movwf dst
+               00837         movlw HIGH(literal)
+               00838         subwfb reg + 1, W
+               00839         movwf dst + 1
+               00840         ENDM
+               00841 
+               00842 ; subtract signed reg8 from reg16
+               00843 SUBTRACT_REG16_REG8 macro reg16, reg8
+               00844         movf reg8, W
+               00845         subwf reg16, F
+               00846 ; carry sign bit
+               00847         movlw 0
+               00848         btfsc reg8, 7
+               00849                 movlw H'ff'
+               00850         subwfb reg16 + 1, F
+               00851         ENDM
+               00852 
+               00853 ; subtract 16 bit register src2 from src1 and store result in dst
+               00854 SUBTRACT_DST16_REG16_REG16 macro dst, src1, src2
+               00855         movf src2, W
+               00856         subwf src1, W
+               00857         movwf dst
+               00858         movf src2 + 1, W
+               00859         subwfb src1 + 1, W
+               00860         movwf dst + 1
+               00861         ENDM
+               00862 
+               00863 ; subtract 16 bit pointer srclo from register dstlo and store result in dstlo
+               00864 SUBTRACT_REG_PTR16 macro dstlo, srclo
+               00865         movf srclo, W
+               00866         subwf dstlo, F
+               00867         movf srclo, W
+               00868         subwfb dstlo + 1, F
+               00869         ENDM
+               00870 
+               00871 ; subtract 16 bit reg srclo from pointer dstlo
+               00872 SUBTRACT_PTR_REG16 macro dstlo, srclo
+               00873         movf srclo, W
+               00874         subwf dstlo, F
+               00875         movf srclo + 1, W
+               00876         subwfb dstlo, F
+               00877         ENDM
+               00878 
+               00879 ; subtract 16 bit pointer src2 from register src1 and store result in dst
+               00880 SUBTRACT_DST_REG_PTR16 macro dst, src1, src2
+               00881         movf src2, W
+               00882         subwf src1, W
+               00883         movwf dst
+               00884         movf src2, W
+               00885         subwfb src1 + 1, W
+               00886         movwf dst + 1
+               00887         ENDM
+               00888 
+               00889 ; subtract 16 bit register src2 from register src1 and store result in pointer
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 18
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00890 SUBTRACT_POINTER16_REG16_REG16 macro dst, src1, src2
+               00891         movf src2, W
+               00892         subwf src1, W
+               00893         movwf dst
+               00894         movf src2 + 1, W
+               00895         subwfb src1 + 1, W
+               00896         movwf dst
+               00897         ENDM
+               00898 
+               00899 ; subtract 24 bit register src2 from register src1 and store result in dst
+               00900 SUBTRACT_DST24_REG24_REG24 macro dst, src1, src2
+               00901 
+               00902         movf src2, W
+               00903         subwf src1, W
+               00904         movwf dst
+               00905 
+               00906         movf src2 + 1, W
+               00907         subwfb src1 + 1, W
+               00908         movwf dst + 1
+               00909 
+               00910         movf src2 + 2, W
+               00911         subwfb src1 + 2, W
+               00912         movwf dst + 2
+               00913         ENDM
+               00914 
+               00915 ; subtract 16 bit register src2 from 24 bit register src1 and store 
+               00916 ; result in 24 bit dst register
+               00917 SUBTRACT_DST24_REG24_REG16 macro dst, src1, src2
+               00918         movf src2, W
+               00919         subwf src1, W
+               00920         movwf dst
+               00921         movf src2 + 1, W
+               00922         subwfb src1 + 1, W
+               00923         movwf dst + 1
+               00924         movlw 0
+               00925         subwfb src1 + 2, W
+               00926         movwf dst + 2
+               00927         ENDM
+               00928 
+               00929 ; subtract 16 bit register src2 from 16 bit register src1 and store 
+               00930 ; result in 24 bit dst register
+               00931 SUBTRACT_DST24_REG16_REG16 macro dst, src1, src2
+               00932         movf src2, W
+               00933         subwf src1, W
+               00934         movwf dst
+               00935 
+               00936         movf src2 + 1, W
+               00937         subwfb src1 + 1, W
+               00938         movwf dst + 1
+               00939 
+               00940         movlw 0
+               00941         clrf dst + 2
+               00942         subwfb dst + 2, F
+               00943         ENDM
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 19
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00944 
+               00945 ; subtract 16 bit register src2 from 16 bit pointer ptr1 and store 
+               00946 ; result in 24 bit dst register
+               00947 SUBTRACT_DST24_PTR16_REG16 macro dst, ptr1, src2
+               00948         movf src2, W
+               00949         subwf ptr1, W
+               00950         movwf dst
+               00951 
+               00952         movf src2 + 1, W
+               00953         subwfb ptr1, W
+               00954         movwf dst + 1
+               00955 
+               00956         movlw 0
+               00957         clrf dst + 2
+               00958         subwfb dst + 2, F
+               00959         ENDM
+               00960 
+               00961 ; subtract 16 bit postinc pointer srclo from dstlo and store result in dstlo
+               00962 SUBTRACT_POINTER16 macro dstlo, srclo
+               00963         movf srclo, W
+               00964         subwf dstlo, F
+               00965         movf srclo, W
+               00966         subwfb dstlo, F
+               00967         ENDM
+               00968 
+               00969 ; subtract literal from reg
+               00970 SUBTRACT_LITERAL16 macro dstlo, literal
+               00971         movlw LOW(literal)
+               00972         subwf dstlo, F
+               00973         movlw HIGH(literal)
+               00974         subwfb dstlo + 1, F
+               00975         ENDM
+               00976 
+               00977 ; subtract literal from POSTINC
+               00978 SUBTRACT_POSTINC_LITERAL16 macro dstlo, literal
+               00979         movlw LOW(literal)
+               00980         subwf dstlo, F
+               00981         movlw HIGH(literal)
+               00982         subwfb dstlo, F
+               00983         ENDM
+               00984 
+               00985 ; subtract reg from literal and place in reg
+               00986 SUBTRACT_LITERAL_REG16 macro literal, dstlo
+               00987         bsf STATUS, C
+               00988         movlw LOW(literal)
+               00989         subfwb dstlo, F
+               00990         movlw HIGH(literal)
+               00991         subfwb dstlo + 1, F
+               00992         ENDM
+               00993 
+               00994 ; subtract srclo from dstlo and store result in dstlo
+               00995 SUBTRACT32 macro dstlo, srclo
+               00996         movf srclo, W
+               00997         subwf dstlo, F
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 20
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00998         movf srclo + 1, W
+               00999         subwfb dstlo + 1, F
+               01000         movf srclo + 2, W
+               01001         subwfb dstlo + 2, F
+               01002         movf srclo + 3, W
+               01003         subwfb dstlo + 3, F
+               01004         ENDM
+               01005 
+               01006 
+               01007 ; subtract srclo from dstlo and store result in dstlo
+               01008 SUBTRACT24 macro dstlo, srclo
+               01009         movf srclo, W
+               01010         subwf dstlo, F
+               01011         movf srclo + 1, W
+               01012         subwfb dstlo + 1, F
+               01013         movf srclo + 2, W
+               01014         subwfb dstlo + 2, F
+               01015         ENDM
+               01016 
+               01017 
+               01018 ; subtract 32 bit literal from 32 bit register
+               01019 SUBTRACT_LITERAL32 macro reg, literalhi, literallo
+               01020         movlw LOW(literallo)
+               01021         subwf reg, F
+               01022         movlw HIGH(literallo)
+               01023         subwfb reg + 1, F
+               01024         movlw LOW(literalhi)
+               01025         subwfb reg + 2, F
+               01026         movlw HIGH(literalhi)
+               01027         subwfb reg + 3, F
+               01028         ENDM
+               01029 
+               01030 
+               01031 
+               01032 ; skip if the contents of the registers are equal
+               01033 SKIP_EQUAL macro reg1, reg2
+               01034         movf reg1, W
+               01035         cpfseq reg2
+               01036         ENDM
+               01037 
+               01038 ; skip if the contents of the registers are not equal
+               01039 SKIP_NOTEQUAL macro reg1, reg2
+               01040         movf reg1, W
+               01041         subwf reg2, W
+               01042         btfsc STATUS, Z
+               01043         ENDM
+               01044 
+               01045 ; skip if the register equals the literal
+               01046 SKIP_EQUAL_LITERAL macro reg1, literal
+               01047         movlw literal
+               01048         cpfseq reg1
+               01049         ENDM
+               01050 
+               01051 ; skip if the 16 bit registers are equal
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 21
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               01052 SKIP_EQUAL16 macro reg1, reg2
+               01053         movf reg2, W
+               01054         cpfseq reg1
+               01055         bra $ + 6
+               01056         movf reg2 + 1, W
+               01057         cpfseq reg1 + 1
+               01058         ENDM
+               01059 
+               01060 ; skip if the register equals the literal
+               01061 SKIP_EQUAL_LITERAL16 macro reg1, literal
+               01062         movlw LOW(literal)
+               01063         cpfseq reg1
+               01064         bra $ + 6
+               01065         movlw HIGH(literal)
+               01066         cpfseq reg1 + 1
+               01067         ENDM
+               01068 
+               01069 
+               01070 ; skip if the register is not equal to the literal
+               01071 SKIP_NOTEQUAL_LITERAL macro reg1, literal
+               01072         movlw literal
+               01073         subwf reg1, W
+               01074         btfsc STATUS, Z
+               01075         ENDM
+               01076 
+               01077 SKIP_ZERO macro reg
+               01078         movf reg, W
+               01079         btfss STATUS, Z
+               01080         ENDM
+               01081 
+               01082 SKIP_ZERO16 macro reg
+               01083         movf reg, W
+               01084 ; if it's zero, test the next byte
+               01085         btfss STATUS, Z
+               01086 ; if it's nonzero, don't skip now
+               01087         bra $ + 6
+               01088         movf reg + 1, W
+               01089         btfss STATUS, Z
+               01090         ENDM
+               01091 
+               01092 SKIP_NONZERO macro reg
+               01093         movf reg, W
+               01094         btfsc STATUS, Z
+               01095         ENDM
+               01096 
+               01097 SKIP_NONZERO16 macro reg
+               01098         movf reg, W
+               01099 ; if it's zero, test the next byte
+               01100         btfss STATUS, Z
+               01101 ; if it's nonzero, skip now
+               01102         bra $ + 8
+               01103         movf reg + 1, W
+               01104         btfsc STATUS, Z
+               01105         ENDM
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 22
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               01106 
+               01107 SKIP_NEGATIVE32 macro reg
+               01108         btfss reg + 3, D'7'
+               01109         ENDM
+               01110 
+               01111 GOTO_IF_ZERO macro reg, target
+               01112         movf reg, W
+               01113         bz target
+               01114         ENDM
+               01115 
+               01116 GOTO_IF_NOT_ZERO macro reg, target
+               01117         movf reg, W
+               01118         bnz target
+               01119         ENDM
+               01120 
+               01121 ; skip if the bits are equal
+               01122 SKIP_BITS_EQUAL macro reg1, bit1, reg2, bit2
+               01123         bcf STATUS, C
+               01124         btfsc reg1, bit1
+               01125         btg STATUS, C
+               01126         btfsc reg2, bit2
+               01127         btg STATUS, C
+               01128         btfsc STATUS, C
+               01129         ENDM
+               01130 
+               01131 ; skip if the bits are not equal
+               01132 SKIP_BITS_NOTEQUAL macro reg1, bit1, reg2, bit2
+               01133         bcf STATUS, C
+               01134         btfsc reg1, bit1
+               01135         btg STATUS, C
+               01136         btfsc reg2, bit2
+               01137         btg STATUS, C
+               01138         btfss STATUS, C
+               01139         ENDM
+               01140 
+               01141 ; skip if reg1 > reg2
+               01142 SKIP_GREATER macro reg1, reg2
+               01143         movf reg2, W
+               01144         cpfsgt reg1
+               01145         ENDM
+               01146 
+               01147 
+               01148 ; skip if the register contents are > literal
+               01149 SKIP_GREATER_LITERAL macro reg, literal
+               01150         movlw literal
+               01151         cpfsgt reg
+               01152         ENDM
+               01153 
+               01154 SKIP_GREATEREQUAL_LITERAL macro reg, literal
+               01155         movlw literal - 1
+               01156         cpfsgt reg
+               01157         ENDM
+               01158 
+               01159 SKIP_GREATEREQUAL macro reg1, reg2
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 23
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               01160         movf reg2, W
+               01161         subwf reg1, W
+               01162         btfss STATUS, C
+               01163         ENDM
+               01164 
+               01165 
+               01166 ; skip if reglo < literal
+               01167 SKIP_LESS_LITERAL16 macro reglo, literal
+               01168         movlw LOW(literal)
+               01169         subwf reglo, W
+               01170         movlw HIGH(literal)
+               01171         subwfb reglo + 1, W
+               01172 ; if literal > reglo then skip
+               01173         btfsc STATUS, C
+               01174         ENDM
+               01175 
+               01176 ; skip if register contents > literal
+               01177 SKIP_GREATER_LITERAL16 macro reglo, literal
+               01178 ; subtract register low from literal low and discard result
+               01179         movf reglo, W
+               01180         sublw LOW(literal)
+               01181 ; subtract register high from literal high and discard result
+               01182         movlw HIGH(literal)
+               01183         subfwb reglo + 1, W
+               01184 ; negative if register > literal
+               01185 ; testing for N didn't handle all cases
+               01186         btfsc STATUS, C
+               01187         ENDM
+               01188 
+               01189 ; skip if postinc pointer contents > literal
+               01190 SKIP_POINTER_GREATER_LITERAL16 macro ptr, literal
+               01191         movf ptr, W
+               01192         sublw LOW(literal)
+               01193         movlw HIGH(literal)
+               01194         subfwb ptr, W
+               01195         btfsc STATUS, C
+               01196         ENDM
+               01197 
+               01198 ; skip if register contents >= literal
+               01199 SKIP_GREATEREQUAL_LITERAL16 macro reglo, literal
+               01200         movlw LOW(literal)
+               01201         subwf reglo, W
+               01202         movlw HIGH(literal)
+               01203         subwfb reglo + 1, W
+               01204 ; carry = 1 if reglo >= literal
+               01205         btfss STATUS, C
+               01206         ENDM
+               01207 
+               01208 
+               01209 ; skip if register1 contents > register2 contents
+               01210 SKIP_GREATER16 macro dstlo, srclo
+               01211 ; subtract register1 low from register2 low
+               01212         movf dstlo, W
+               01213         subwf srclo, W
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 24
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               01214 ; subtract register1 high from register2 high
+               01215         movf dstlo + 1, W
+               01216         subwfb srclo + 1, W
+               01217 ; negative if register1 > register2
+               01218 ; testing for N didn't handle all cases
+               01219         btfsc STATUS, C
+               01220         ENDM
+               01221 
+               01222 
+               01223 ; skip if register reg1 >= reg2
+               01224 SKIP_GREATEREQUAL16 macro reg1, reg2
+               01225         movf reg2, W
+               01226         subwf reg1, W
+               01227         movf reg2 + 1, W
+               01228         subwfb reg1 + 1, W
+               01229 ; carry = 1 if reglo >= literal
+               01230         btfss STATUS, C
+               01231         ENDM
+               01232 
+               01233 ; skip if 32 bit reg1 >= 32 bit reg2
+               01234 SKIP_GREATEREQUAL32 macro dstlo, srclo
+               01235         movf srclo, W
+               01236         subwf dstlo, W
+               01237         movf srclo + 1, W
+               01238         subwfb dstlo + 1, W
+               01239         movf srclo + 2, W
+               01240         subwfb dstlo + 2, W
+               01241         movf srclo + 3, W
+               01242         subwfb dstlo + 3, W
+               01243 ; carry = 1 if reg1 >= reg2
+               01244         btfss STATUS, C
+               01245         ENDM
+               01246 
+               01247 ; skip if 32 bit register >= 32 bit literal
+               01248 SKIP_GREATEREQUAL_LITERAL32 macro reglo, literalhi16, literallo16
+               01249         movlw LOW(literallo16)
+               01250         subwf reglo, W
+               01251         movlw HIGH(literallo16)
+               01252         subwfb reglo + 1, W
+               01253         movlw LOW(literalhi16)
+               01254         subwfb reglo + 2, W
+               01255         movlw HIGH(literalhi16)
+               01256         subwfb reglo + 3, W
+               01257 ; carry = 1 if register >= literal
+               01258         btfss STATUS, C
+               01259         ENDM
+               01260 
+               01261 
+               01262 
+               01263 ; skip if reg1 < literal
+               01264 ; reg2 is 2 16bit constants
+               01265 SKIP_LESS_LITERAL32 macro reg1, reg2h, reg2l
+               01266         movlw LOW(reg2l)
+               01267         subwf reg1 + 0, W
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 25
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               01268         movlw HIGH(reg2l)
+               01269         subwfb reg1 + 1, W
+               01270         movlw LOW(reg2h)
+               01271         subwfb reg1 + 2, W
+               01272         movlw HIGH(reg2h)
+               01273         subwfb reg1 + 3, W
+               01274         btfsc STATUS, C
+               01275         ENDM
+               01276 
+               01277 ; skip if register < literal
+               01278 SKIP_LESS_LITERAL macro reg, literal
+               01279         movlw literal
+               01280         cpfslt reg
+               01281         ENDM
+               01282 
+               01283 ; skip if register <= literal
+               01284 ; literal must be < 255
+               01285 SKIP_LESSEQUAL_LITERAL macro reg, literal
+               01286         movlw literal + 1
+               01287         cpfslt reg
+               01288         ENDM
+               01289 
+               01290 ; skip if reg1 < reg2
+               01291 ; temp must point to a 32 bit register
+               01292 SKIP_LESS32 macro temp, reg1, reg2
+               01293         COPY_REGISTER32 temp, reg1
+               01294         SUBTRACT32 temp, reg2
+               01295         btfss temp + 3, D'7' ; bit 31 is 1 if literal was > reg
+               01296         ENDM
+               01297 
+               01298 
+               01299 ; skip if register1 < register2
+               01300 SKIP_LESS16 macro reg1, reg2
+               01301         movf reg2 + 0, W
+               01302         subwf reg1 + 0, W
+               01303         movf reg2 + 1, W
+               01304         subwfb reg1 + 1, W
+               01305         btfsc STATUS, C
+               01306         ENDM
+               01307 
+               01308 
+               01309 ; skip if register1 < register2
+               01310 SKIP_LESS macro reg1, reg2
+               01311         movf reg2, W
+               01312         cpfslt reg1
+               01313         ENDM
+               01314 
+               01315 ; skip if register1 <= register2
+               01316 SKIP_LESSEQUAL macro reg1, reg2
+               01317         movf reg1, W
+               01318         subwf reg2, W
+               01319         btfss STATUS, C
+               01320         ENDM
+               01321 
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 26
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               01322 ; skip if register1 <= register2
+               01323 SKIP_LESSEQUAL16 macro reg1, reg2
+               01324         movf reg1, W
+               01325         subwf reg2, W
+               01326         movf reg1 + 1, W
+               01327         subwfb reg2 + 1, W
+               01328         btfss STATUS, C
+               01329         ENDM
+               01330 
+               01331 
+               01332 
+               01333 COMMON_VARS macro
+               01334 ; need timer wraparounds for LED flashes
+               01335 ; set when timer 1 wrapped
+               01336 ; bit 0 - main loop sets
+               01337 ; bit 1 - interrupt handler sets
+               01338         VARADD TIMER1_WRAP, 1
+               01339         VARADD TEMP0, 2
+               01340         VARADD TEMP1, 2
+               01341         VARADD TEMP2, 2
+               01342         VARADD TEMP3, 2
+               01343 ; temp3 must be 5 bytes for analog to work
+               01344         VARADD TEMP4, 2
+               01345         VARADD TEMP5, 2
+               01346 
+               01347 ; temporaries to use in the interrupt handlers
+               01348         VARADD INT_TEMP0, 2
+               01349         VARADD INT_TEMP1, 2
+               01350 ; use pointer2 in interrupt handlers
+               01351 ; store program counter latch
+               01352         VARADD PC_TEMP, 1
+               01353         ENDM
+               01354 
+               01355 LOOP_COMMON macro
+               01356         clrwdt
+               01357         clrf TIMER1_WRAP
+               01358         btfsc PIR1, TMR1IF
+               01359         setf TIMER1_WRAP
+               01360         btfsc TIMER1_WRAP, 0
+               01361         bcf PIR1, TMR1IF
+               01362         ENDM
+               01363 
+               01364 
+               01365 
+               01366 #endif ; PIC_UTIL_INC
+               01367 
+               01368 
+               01369 
+               01370 
+               00021 #include "hardi2c.inc"
+               00001 I2C_VARS macro
+               00002         VARADD I2C_HAVE_DATA, 1
+               00003         VARADD I2C_STATE, 2
+               00004         VARADD I2C_COUNTER, 2
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 27
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00005         VARADD I2C_ADDRESS, 1
+               00006         VARADD I2C_REG, 1
+               00007         VARADD I2C_BYTES, 1
+               00008         VARADD I2C_DST, 2
+               00009         VARADD I2C_VALUE, 1
+               00010         VARADD I2C_TEMP, 1
+               00011         VARADD I2C_TIMEOUT_COUNTER, 2
+               00012         ENDM
+               00013 
+               00014 
+               00015 
+               00016 I2C_READY macro
+               00017         SKIP_EQUAL_LITERAL16 I2C_STATE, i2c_idle
+               00018         return
+               00019         ENDM
+               00020 
+               00021 I2C_READ_DEVICE macro address, reg, dst, bytes
+               00022         SET_REGISTER I2C_ADDRESS, address
+               00023         SET_REGISTER I2C_REG, reg
+               00024         SET_REGISTER16 I2C_DST, dst
+               00025         SET_REGISTER I2C_BYTES, bytes
+               00026         call i2c_read1
+               00027         ENDM
+               00028 
+               00029 
+               00030 I2C_WRITE_DEVICE macro address, reg, value
+               00031         SET_REGISTER I2C_ADDRESS, address
+               00032         SET_REGISTER I2C_REG, reg
+               00033         SET_REGISTER I2C_VALUE, value
+               00034         call i2c_write1
+               00035         ENDM
+               00036 
+               00037 
+               00038 
+               00039 
+               00022 
+               00023 
+0000 00024 #define SYNC_CODE 0xe5
+               00025 
+               00026 
+0000 00027 #define PIC_USE_MPU9150
+               00028 
+               00029 
+               00030 
+0000 00031 #define CLOCKSPEED 32000000
+               00032 ; must be faster than I2C
+0000 00033 #define BAUD 500000
+0000 00034 #define BAUD_RATE_CODE (CLOCKSPEED / (BAUD * 4))
+0000 00035 #define PACKET_SIZE 16
+0000 00036 #define STARTUP_DELAY 32
+               00037 
+               00038 ; FLAG bits
+               00039 cblock 0
+               00040         SERIAL_BUF_FULL : 1
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 28
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00041 endc
+               00042 
+               00043 
+               00044 
+               00045         VARSTART H'00', H'100'
+  00000000         M VARCURRENT SET MSTART
+  00000100         M VAREND SET MEND
+               00046         VARADD FLAGS, 1
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000000         M VARNAME EQU VARCURRENT
+  00000001         M VARCURRENT SET VARCURRENT + SIZE
+               00047         VARADD IMU_STATE, 2
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000001         M VARNAME EQU VARCURRENT
+  00000003         M VARCURRENT SET VARCURRENT + SIZE
+               00048         VARADD RESULT, 1
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000003         M VARNAME EQU VARCURRENT
+  00000004         M VARCURRENT SET VARCURRENT + SIZE
+               00049         VARADD RAW_DATA, 32
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000004         M VARNAME EQU VARCURRENT
+  00000024         M VARCURRENT SET VARCURRENT + SIZE
+               00050         VARADD SERIAL_BUF, PACKET_SIZE
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000024         M VARNAME EQU VARCURRENT
+  00000034         M VARCURRENT SET VARCURRENT + SIZE
+               00051         VARADD SERIAL_BUF2, PACKET_SIZE
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000034         M VARNAME EQU VARCURRENT
+  00000044         M VARCURRENT SET VARCURRENT + SIZE
+               00052         VARADD SERIAL_COUNTER, 1
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000044         M VARNAME EQU VARCURRENT
+  00000045         M VARCURRENT SET VARCURRENT + SIZE
+               00053         VARADD TEMP0, 4
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000045         M VARNAME EQU VARCURRENT
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 29
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+  00000049         M VARCURRENT SET VARCURRENT + SIZE
+               00054         I2C_VARS
+                   M         VARADD I2C_HAVE_DATA, 1
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000049         M VARNAME EQU VARCURRENT
+  0000004A         M VARCURRENT SET VARCURRENT + SIZE
+                   M         VARADD I2C_STATE, 2
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  0000004A         M VARNAME EQU VARCURRENT
+  0000004C         M VARCURRENT SET VARCURRENT + SIZE
+                   M         VARADD I2C_COUNTER, 2
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  0000004C         M VARNAME EQU VARCURRENT
+  0000004E         M VARCURRENT SET VARCURRENT + SIZE
+                   M         VARADD I2C_ADDRESS, 1
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  0000004E         M VARNAME EQU VARCURRENT
+  0000004F         M VARCURRENT SET VARCURRENT + SIZE
+                   M         VARADD I2C_REG, 1
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  0000004F         M VARNAME EQU VARCURRENT
+  00000050         M VARCURRENT SET VARCURRENT + SIZE
+                   M         VARADD I2C_BYTES, 1
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000050         M VARNAME EQU VARCURRENT
+  00000051         M VARCURRENT SET VARCURRENT + SIZE
+                   M         VARADD I2C_DST, 2
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000051         M VARNAME EQU VARCURRENT
+  00000053         M VARCURRENT SET VARCURRENT + SIZE
+                   M         VARADD I2C_VALUE, 1
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000053         M VARNAME EQU VARCURRENT
+  00000054         M VARCURRENT SET VARCURRENT + SIZE
+                   M         VARADD I2C_TEMP, 1
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 30
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+  00000054         M VARNAME EQU VARCURRENT
+  00000055         M VARCURRENT SET VARCURRENT + SIZE
+                   M         VARADD I2C_TIMEOUT_COUNTER, 2
+                   M         IF (VARCURRENT + SIZE > VAREND)
+                   M                 ERROR "Too many variables for allocated file registers"
+                   M         ENDIF
+  00000055         M VARNAME EQU VARCURRENT
+  00000057         M VARCURRENT SET VARCURRENT + SIZE
+               00055         
+               00056 
+               00057 
+               00058 
+               00059 
+0000           00060         ORG RESETVECTOR
+0000 EF00 F001 00061         goto start
+               00062 
+0008           00063         ORG INTVECTORHI
+0008 EF00 F001 00064         goto start
+               00065 
+0018           00066         ORG INTVECTORLO
+0018 EF00 F001 00067         goto start
+               00068 
+               00069 
+0200           00070         ORG 0x200
+0200 00071 start:
+0200 0100      00072         BANKSEL H'00'
+               00073         
+               00074         SET_REGISTER OSCCON, B'01100000'
+0202 0E60          M         movlw literal
+0204 6ED3          M         movwf reg
+               00075         SET_REGISTER OSCTUNE, B'01000000'
+0206 0E40          M         movlw literal
+0208 6E9B          M         movwf reg
+               00076 
+020A 6A00      00077         clrf FLAGS
+020C 6A7E      00078         clrf ANSEL
+020E 6A7F      00079         clrf ANSELH
+               00080 
+               00081         SET_REGISTER TXSTA, B'00100100'
+0210 0E24          M         movlw literal
+0212 6EAC          M         movwf reg
+               00082         SET_REGISTER BAUDCON, B'00001000'
+0214 0E08          M         movlw literal
+0216 6EB8          M         movwf reg
+               00083         SET_REGISTER16 SPBRG, BAUD_RATE_CODE
+0218 0E10          M         movlw LOW(literal)
+021A 6EAF          M         movwf reglo
+021C 0E00          M         movlw HIGH(literal)
+021E 6EB0          M         movwf reglo + 1
+               00084         SET_REGISTER RCSTA, B'10000000'
+0220 0E80          M         movlw literal
+0222 6EAB          M         movwf reg
+               00085 
+               00086 
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 31
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00087 
+               00088 ; delay for peripherals
+               00089         CLEAR_REGISTER32 TEMP0
+0224 6A45          M         clrf reglo
+0226 6A46          M         clrf reglo + 1
+0228 6A47          M         clrf reglo + 2
+022A 6A48          M         clrf reglo + 3
+               00090         SET_REGISTER TEMP0 + 2, -STARTUP_DELAY
+022C 0EE0          M         movlw literal
+022E 6E47          M         movwf reg
+0230 00091 start_delay:
+0230 0004      00092         clrwdt
+0232 3E45      00093         incfsz TEMP0, F
+0234 D7FD      00094         bra start_delay
+0236 3E46      00095                 incfsz TEMP0 + 1, F
+0238 D7FB      00096                 bra start_delay
+023A 3E47      00097                         incfsz TEMP0 + 2, F
+023C D7F9      00098                         bra start_delay
+               00099 
+               00100 
+               00101         SET_REGISTER16 IMU_STATE, init1
+023E 0E58          M         movlw LOW(literal)
+0240 6E01          M         movwf reglo
+0242 0E06          M         movlw HIGH(literal)
+0244 6E02          M         movwf reglo + 1
+               00102         SET_REGISTER SERIAL_COUNTER, PACKET_SIZE
+0246 0E10          M         movlw literal
+0248 6E44          M         movwf reg
+               00103 
+               00104 
+               00105 
+               00106 
+024A EC2A F001 00107         call init_i2c
+               00108 ; I2C baud rate divider
+               00109         SET_REGISTER SSPADD, 20
+024E 0E14          M         movlw literal
+0250 6EC8          M         movwf reg
+               00110 
+0252 D147      00111         bra loop
+               00112 
+               00113 
+               00114 #include "hardi2c.s"
+               00001 ; 18f14k50
+               00002 ; usb_programmer -p 18f14k50 -e
+               00003 ; crystal + PLL
+               00004 ; usb_programmer -p 18f14k50 -c 0x300000 0011001000000000
+               00005 ; internal + PLL
+               00006 ; usb_programmer -p 18f14k50 -c 0x300000 0011100000000000
+               00007 ; watchdog & brownout
+               00008 ; usb_programmer -p 18f14k50 -c 0x300002 0001111100011110
+               00009 ; disable PGM & extended instructions
+               00010 ; usb_programmer -p 18f14k50 -c 0x300006 0000000000000000
+               00011 ; rm pic/hardi2c.hex.orig;usb_programmer -p 18f14k50 pic/hardi2c.hex
+               00012 ; usb_programmer -p 18f14k50 -r pic/hardi2c.hex
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 32
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00013 
+               00014 
+               00015 
+0254 00016 #define I2C_TIMEOUT 60000
+               00017 
+               00018 
+               00019 
+0254 00020 init_i2c:
+0254 6A49      00021         clrf I2C_HAVE_DATA
+               00022         SET_REGISTER16 I2C_STATE, i2c_idle
+0256 0E76          M         movlw LOW(literal)
+0258 6E4A          M         movwf reglo
+025A 0E02          M         movlw HIGH(literal)
+025C 6E4B          M         movwf reglo + 1
+               00023 ; speed
+               00024 ;       SET_REGISTER SSPADD, 20
+               00025         SET_REGISTER SSPADD, 80
+025E 0E50          M         movlw literal
+0260 6EC8          M         movwf reg
+               00026         SET_REGISTER SSPSTAT, 0x80
+0262 0E80          M         movlw literal
+0264 6EC7          M         movwf reg
+               00027         SET_REGISTER SSPCON1, b'00101000'
+0266 0E28          M         movlw literal
+0268 6EC6          M         movwf reg
+               00028         CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+026A 6A55          M         clrf reglo
+026C 6A56          M         clrf reglo + 1
+               00029 
+               00030 
+               00031 
+026E 00032 i2c_loop:
+               00033         SET_PC_REG I2C_STATE
+026E C04B FFFA     M         movff reg + 1, PCLATH
+0272 504A          M         movf reg, W
+0274 6EF9          M         movwf PCL
+               00034 
+               00035 
+0276 00036 i2c_idle:
+0276 0012      00037         return
+               00038 
+               00039 
+               00040 
+0278 00041 i2c_write6:
+0278 B4C5      00042         btfsc SSPCON2, PEN
+027A D001      00043         bra i2c_write6_timeout
+027C D008      00044                 bra i2c_write6_continue
+               00045 
+027E 00046 i2c_write6_timeout:
+               00047         INC16 I2C_TIMEOUT_COUNTER
+027E 4A55          M         infsnz reg, F
+0280 2A56          M         incf reg + 1, F
+               00048         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+                   M ; subtract register low from literal low and discard result
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 33
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+0282 5055          M         movf reglo, W
+0284 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+0286 0EEA          M         movlw HIGH(literal)
+0288 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+028A B0D8          M         btfsc STATUS, C
+028C 0012      00049         return
+               00050 
+028E 00051 i2c_write6_continue:
+               00052                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+028E 6A55          M         clrf reglo
+0290 6A56          M         clrf reglo + 1
+               00053                 SET_REGISTER16 I2C_STATE, i2c_idle
+0292 0E76          M         movlw LOW(literal)
+0294 6E4A          M         movwf reglo
+0296 0E02          M         movlw HIGH(literal)
+0298 6E4B          M         movwf reglo + 1
+029A 0012      00054                 return
+               00055 
+               00056 
+               00057 
+               00058 
+029C 00059 i2c_write5:
+029C A69E      00060         btfss PIR1, SSPIF
+029E D001      00061         bra i2c_write5_timeout
+02A0 D008      00062                 bra i2c_write5_continue
+               00063 
+               00064 
+02A2 00065 i2c_write5_timeout:
+               00066         INC16 I2C_TIMEOUT_COUNTER
+02A2 4A55          M         infsnz reg, F
+02A4 2A56          M         incf reg + 1, F
+               00067         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+                   M ; subtract register low from literal low and discard result
+02A6 5055          M         movf reglo, W
+02A8 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+02AA 0EEA          M         movlw HIGH(literal)
+02AC 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+02AE B0D8          M         btfsc STATUS, C
+02B0 0012      00068         return
+               00069 
+               00070 
+02B2 00071 i2c_write5_continue:
+               00072 ; stop
+02B2 84C5      00073                 bsf SSPCON2, PEN
+               00074                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+02B4 6A55          M         clrf reglo
+02B6 6A56          M         clrf reglo + 1
+               00075                 SET_REGISTER16 I2C_STATE, i2c_write6
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 34
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+02B8 0E78          M         movlw LOW(literal)
+02BA 6E4A          M         movwf reglo
+02BC 0E02          M         movlw HIGH(literal)
+02BE 6E4B          M         movwf reglo + 1
+02C0 0012      00076                 return
+               00077 
+               00078 
+               00079 
+               00080 
+               00081 
+02C2 00082 i2c_write4:
+02C2 A69E      00083         btfss PIR1, SSPIF
+02C4 D001      00084         bra i2c_write4_timeout
+02C6 D008      00085                 bra i2c_write4_continue
+               00086 
+02C8 00087 i2c_write4_timeout:
+               00088         INC16 I2C_TIMEOUT_COUNTER
+02C8 4A55          M         infsnz reg, F
+02CA 2A56          M         incf reg + 1, F
+               00089         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+                   M ; subtract register low from literal low and discard result
+02CC 5055          M         movf reglo, W
+02CE 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+02D0 0EEA          M         movlw HIGH(literal)
+02D2 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+02D4 B0D8          M         btfsc STATUS, C
+02D6 0012      00090         return
+               00091 
+02D8 00092 i2c_write4_continue:
+               00093 ; value to write
+02D8 969E      00094                 bcf PIR1, SSPIF
+               00095                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+02DA 6A55          M         clrf reglo
+02DC 6A56          M         clrf reglo + 1
+               00096                 COPY_REGISTER SSPBUF, I2C_VALUE
+02DE C053 FFC9     M         movff src, dst
+               00097                 SET_REGISTER16 I2C_STATE, i2c_write5
+02E2 0E9C          M         movlw LOW(literal)
+02E4 6E4A          M         movwf reglo
+02E6 0E02          M         movlw HIGH(literal)
+02E8 6E4B          M         movwf reglo + 1
+02EA 0012      00098                 return
+               00099 
+               00100 
+               00101 
+02EC 00102 i2c_write3:
+02EC A69E      00103         btfss PIR1, SSPIF
+02EE D001      00104         bra i2c_write3_timeout
+02F0 D008      00105                 bra i2c_write3_continue
+               00106 
+02F2 00107 i2c_write3_timeout:
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 35
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00108         INC16 I2C_TIMEOUT_COUNTER
+02F2 4A55          M         infsnz reg, F
+02F4 2A56          M         incf reg + 1, F
+               00109         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+                   M ; subtract register low from literal low and discard result
+02F6 5055          M         movf reglo, W
+02F8 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+02FA 0EEA          M         movlw HIGH(literal)
+02FC 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+02FE B0D8          M         btfsc STATUS, C
+0300 0012      00110         return
+               00111 
+0302 00112 i2c_write3_continue:
+               00113 ; register for write
+0302 969E      00114                 bcf PIR1, SSPIF
+               00115                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+0304 6A55          M         clrf reglo
+0306 6A56          M         clrf reglo + 1
+               00116                 COPY_REGISTER SSPBUF, I2C_REG
+0308 C04F FFC9     M         movff src, dst
+               00117                 SET_REGISTER16 I2C_STATE, i2c_write4
+030C 0EC2          M         movlw LOW(literal)
+030E 6E4A          M         movwf reglo
+0310 0E02          M         movlw HIGH(literal)
+0312 6E4B          M         movwf reglo + 1
+0314 0012      00118                 return
+               00119 
+               00120 
+               00121 
+               00122 
+0316 00123 i2c_write2:
+0316 B0C5      00124         btfsc SSPCON2, SEN
+0318 D001      00125         bra i2c_write2_timeout
+031A D008      00126                 bra i2c_write2_continue
+               00127 
+031C 00128 i2c_write2_timeout:
+               00129         INC16 I2C_TIMEOUT_COUNTER
+031C 4A55          M         infsnz reg, F
+031E 2A56          M         incf reg + 1, F
+               00130         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+                   M ; subtract register low from literal low and discard result
+0320 5055          M         movf reglo, W
+0322 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+0324 0EEA          M         movlw HIGH(literal)
+0326 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+0328 B0D8          M         btfsc STATUS, C
+032A 0012      00131         return
+               00132 
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 36
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+032C 00133 i2c_write2_continue:
+032C 969E      00134                 bcf PIR1, SSPIF
+               00135 ; device address for write
+               00136                 COPY_REGISTER SSPBUF, I2C_ADDRESS
+032E C04E FFC9     M         movff src, dst
+               00137                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+0332 6A55          M         clrf reglo
+0334 6A56          M         clrf reglo + 1
+               00138                 SET_REGISTER16 I2C_STATE, i2c_write3
+0336 0EEC          M         movlw LOW(literal)
+0338 6E4A          M         movwf reglo
+033A 0E02          M         movlw HIGH(literal)
+033C 6E4B          M         movwf reglo + 1
+033E 0012      00139                 return
+               00140 
+0340 00141 i2c_write1:
+               00142 ; start
+0340 80C5      00143         bsf SSPCON2, SEN
+               00144         CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+0342 6A55          M         clrf reglo
+0344 6A56          M         clrf reglo + 1
+               00145         SET_REGISTER16 I2C_STATE, i2c_write2
+0346 0E16          M         movlw LOW(literal)
+0348 6E4A          M         movwf reglo
+034A 0E03          M         movlw HIGH(literal)
+034C 6E4B          M         movwf reglo + 1
+034E 0012      00146         return
+               00147         
+               00148 
+               00149 
+               00150 
+               00151 
+0350 00152 i2c_read9:
+0350 B4C5      00153         btfsc SSPCON2, PEN
+0352 D001      00154         bra i2c_read9_timeout
+0354 D008      00155                 bra i2c_read9_continue
+               00156 
+0356 00157 i2c_read9_timeout:
+               00158         INC16 I2C_TIMEOUT_COUNTER
+0356 4A55          M         infsnz reg, F
+0358 2A56          M         incf reg + 1, F
+               00159         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+                   M ; subtract register low from literal low and discard result
+035A 5055          M         movf reglo, W
+035C 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+035E 0EEA          M         movlw HIGH(literal)
+0360 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+0362 B0D8          M         btfsc STATUS, C
+0364 0012      00160         return
+               00161 
+               00162 
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 37
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+0366 00163 i2c_read9_continue:
+               00164                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+0366 6A55          M         clrf reglo
+0368 6A56          M         clrf reglo + 1
+               00165 
+               00166 ; debug
+               00167 ;debug1:
+               00168 ;               btfsc PIR1, TXIF
+               00169 ;               bra debug1
+               00170 ;               COPY_REGISTER TXREG, I2C_BUFFER
+               00171 ;               SET_REGISTER16 I2C_STATE, i2c_read1
+               00172 
+               00173                 SET_REGISTER16 I2C_STATE, i2c_idle
+036A 0E76          M         movlw LOW(literal)
+036C 6E4A          M         movwf reglo
+036E 0E02          M         movlw HIGH(literal)
+0370 6E4B          M         movwf reglo + 1
+0372 0012      00174                 return
+               00175 
+               00176 
+               00177 
+0374 00178 i2c_read8:
+0374 B8C5      00179         btfsc SSPCON2, ACKEN
+0376 D001      00180         bra i2c_read8_timeout
+0378 D008      00181                 bra i2c_read8_continue
+               00182 
+               00183 
+037A 00184 i2c_read8_timeout:
+               00185         INC16 I2C_TIMEOUT_COUNTER
+037A 4A55          M         infsnz reg, F
+037C 2A56          M         incf reg + 1, F
+               00186         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+                   M ; subtract register low from literal low and discard result
+037E 5055          M         movf reglo, W
+0380 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+0382 0EEA          M         movlw HIGH(literal)
+0384 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+0386 B0D8          M         btfsc STATUS, C
+0388 0012      00187         return
+               00188 
+               00189 
+038A 00190 i2c_read8_continue:
+               00191                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+038A 6A55          M         clrf reglo
+038C 6A56          M         clrf reglo + 1
+038E 2A4C      00192                 incf I2C_COUNTER, F
+               00193                 SKIP_GREATEREQUAL I2C_COUNTER, I2C_BYTES
+0390 5050          M         movf reg2, W
+0392 5C4C          M         subwf reg1, W
+0394 A0D8          M         btfss STATUS, C
+0396 D03C      00194                 bra read_reg2
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 38
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00195 ; stop
+0398 84C5      00196                         bsf SSPCON2, PEN
+               00197                         SET_REGISTER16 I2C_STATE, i2c_read9
+039A 0E50          M         movlw LOW(literal)
+039C 6E4A          M         movwf reglo
+039E 0E03          M         movlw HIGH(literal)
+03A0 6E4B          M         movwf reglo + 1
+03A2 0012      00198                         return
+               00199 
+               00200 
+03A4 00201 i2c_read7:
+03A4 A69E      00202         btfss PIR1, SSPIF
+03A6 D001      00203         bra i2c_read7_timeout
+03A8 D008      00204                 bra i2c_read7_continue
+               00205 
+               00206 
+               00207 
+03AA 00208 i2c_read7_timeout:
+               00209         INC16 I2C_TIMEOUT_COUNTER
+03AA 4A55          M         infsnz reg, F
+03AC 2A56          M         incf reg + 1, F
+               00210         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+                   M ; subtract register low from literal low and discard result
+03AE 5055          M         movf reglo, W
+03B0 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+03B2 0EEA          M         movlw HIGH(literal)
+03B4 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+03B6 B0D8          M         btfsc STATUS, C
+03B8 0012      00211         return
+               00212 
+               00213 
+03BA 00214 i2c_read7_continue:
+               00215 ; copy data
+               00216                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+03BA 6A55          M         clrf reglo
+03BC 6A56          M         clrf reglo + 1
+               00217                 SET_POINTER0_REG I2C_DST
+03BE C051 FFE9     M         movff reg, FSR0L
+03C2 C052 FFEA     M         movff reg + 1, FSR0H
+               00218                 ADD16 POINTER0, I2C_COUNTER
+03C6 504C          M         movf srclo, W
+03C8 26E9          M         addwf dstlo, F
+03CA 504D          M         movf srclo + 1, W
+03CC 22EA          M         addwfc dstlo + 1, F
+               00219                 COPY_REGISTER INDF0, SSPBUF
+03CE CFC9 FFEF     M         movff src, dst
+               00220                 COPY_REGISTER I2C_VALUE, INDF0
+03D2 CFEF F053     M         movff src, dst
+03D6 6849      00221                 setf I2C_HAVE_DATA
+               00222 
+               00223 ;debug0:
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 39
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00224 ;       btfss PIR1, TXIF
+               00225 ;       bra debug0
+               00226 ;               COPY_REGISTER TXREG, I2C_COUNTER
+               00227 
+               00228                 
+               00229 
+               00230                 COPY_REGISTER I2C_TEMP, I2C_BYTES
+03D8 C050 F054     M         movff src, dst
+03DC 0654      00231                 decf I2C_TEMP, F
+               00232                 SKIP_GREATEREQUAL I2C_COUNTER, I2C_TEMP
+03DE 5054          M         movf reg2, W
+03E0 5C4C          M         subwf reg1, W
+03E2 A0D8          M         btfss STATUS, C
+03E4 D002      00233                         bra not_last_byte
+               00234 
+               00235 ; ACK if last byte
+03E6 8AC5      00236                 bsf SSPCON2, ACKDT
+03E8 D002      00237                 bra i2c_read7_continue2
+               00238 
+03EA 00239 not_last_byte:
+03EA 9AC5      00240                 bcf SSPCON2, ACKDT
+03EC D000      00241                 bra i2c_read7_continue2
+               00242 
+03EE 00243 i2c_read7_continue2:
+03EE 88C5      00244                 bsf SSPCON2, ACKEN
+               00245                 SET_REGISTER16 I2C_STATE, i2c_read8
+03F0 0E74          M         movlw LOW(literal)
+03F2 6E4A          M         movwf reglo
+03F4 0E03          M         movlw HIGH(literal)
+03F6 6E4B          M         movwf reglo + 1
+03F8 0012      00246                 return
+               00247 
+               00248 
+               00249 
+03FA 00250 i2c_read6:
+03FA A69E      00251         btfss PIR1, SSPIF
+03FC D001      00252         bra i2c_read6_timeout
+03FE D008      00253                 bra i2c_read6_continue
+               00254 
+0400 00255 i2c_read6_timeout:
+               00256         INC16 I2C_TIMEOUT_COUNTER
+0400 4A55          M         infsnz reg, F
+0402 2A56          M         incf reg + 1, F
+               00257         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+                   M ; subtract register low from literal low and discard result
+0404 5055          M         movf reglo, W
+0406 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+0408 0EEA          M         movlw HIGH(literal)
+040A 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+040C B0D8          M         btfsc STATUS, C
+040E 0012      00258         return
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 40
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00259 
+               00260 
+0410 00261 i2c_read6_continue:
+0410 00262 read_reg2:
+               00263         CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+0410 6A55          M         clrf reglo
+0412 6A56          M         clrf reglo + 1
+0414 969E      00264         bcf PIR1, SSPIF
+0416 86C5      00265         bsf SSPCON2, RCEN
+               00266         SET_REGISTER16 I2C_STATE, i2c_read7
+0418 0EA4          M         movlw LOW(literal)
+041A 6E4A          M         movwf reglo
+041C 0E03          M         movlw HIGH(literal)
+041E 6E4B          M         movwf reglo + 1
+0420 0012      00267         return
+               00268 
+               00269 
+0422 00270 i2c_read5:
+0422 B2C5      00271         btfsc SSPCON2, RSEN
+0424 D001      00272         bra i2c_read5_timeout
+0426 D008      00273                 bra i2c_read5_continue
+               00274 
+               00275 
+               00276 
+0428 00277 i2c_read5_timeout:
+               00278         INC16 I2C_TIMEOUT_COUNTER
+0428 4A55          M         infsnz reg, F
+042A 2A56          M         incf reg + 1, F
+               00279         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+                   M ; subtract register low from literal low and discard result
+042C 5055          M         movf reglo, W
+042E 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+0430 0EEA          M         movlw HIGH(literal)
+0432 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+0434 B0D8          M         btfsc STATUS, C
+0436 0012      00280         return
+               00281 
+               00282 
+0438 00283 i2c_read5_continue:
+               00284                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+0438 6A55          M         clrf reglo
+043A 6A56          M         clrf reglo + 1
+               00285 ; device address | 1 for read
+043C 969E      00286                 bcf PIR1, SSPIF
+               00287                 COPY_REGISTER I2C_TEMP, I2C_ADDRESS
+043E C04E F054     M         movff src, dst
+0442 8054      00288                 bsf I2C_TEMP, 0
+               00289                 COPY_REGISTER SSPBUF, I2C_TEMP
+0444 C054 FFC9     M         movff src, dst
+               00290                 SET_REGISTER16 I2C_STATE, i2c_read6
+0448 0EFA          M         movlw LOW(literal)
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 41
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+044A 6E4A          M         movwf reglo
+044C 0E03          M         movlw HIGH(literal)
+044E 6E4B          M         movwf reglo + 1
+0450 0012      00291                 return
+               00292                 
+               00293 
+               00294 
+0452 00295 i2c_read4:
+0452 A69E      00296         btfss PIR1, SSPIF
+0454 D001      00297         bra i2c_read4_timeout
+0456 D008      00298                 bra i2c_read4_continue
+               00299 
+0458 00300 i2c_read4_timeout:
+               00301         INC16 I2C_TIMEOUT_COUNTER
+0458 4A55          M         infsnz reg, F
+045A 2A56          M         incf reg + 1, F
+               00302         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+                   M ; subtract register low from literal low and discard result
+045C 5055          M         movf reglo, W
+045E 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+0460 0EEA          M         movlw HIGH(literal)
+0462 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+0464 B0D8          M         btfsc STATUS, C
+0466 0012      00303         return
+               00304 
+               00305 
+0468 00306 i2c_read4_continue:
+               00307                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+0468 6A55          M         clrf reglo
+046A 6A56          M         clrf reglo + 1
+               00308 ; restart
+046C 82C5      00309                 bsf SSPCON2, RSEN
+               00310                 SET_REGISTER16 I2C_STATE, i2c_read5
+046E 0E22          M         movlw LOW(literal)
+0470 6E4A          M         movwf reglo
+0472 0E04          M         movlw HIGH(literal)
+0474 6E4B          M         movwf reglo + 1
+0476 0012      00311                 return
+               00312 
+               00313 
+               00314 
+0478 00315 i2c_read3:
+0478 A69E      00316         btfss PIR1, SSPIF
+047A D001      00317         bra i2c_read3_timeout
+047C D008      00318                 bra i2c_read3_continue
+               00319 
+047E 00320 i2c_read3_timeout:
+               00321         INC16 I2C_TIMEOUT_COUNTER
+047E 4A55          M         infsnz reg, F
+0480 2A56          M         incf reg + 1, F
+               00322         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 42
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+                   M ; subtract register low from literal low and discard result
+0482 5055          M         movf reglo, W
+0484 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+0486 0EEA          M         movlw HIGH(literal)
+0488 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+048A B0D8          M         btfsc STATUS, C
+048C 0012      00323         return
+               00324 
+               00325 
+048E 00326 i2c_read3_continue:
+               00327                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+048E 6A55          M         clrf reglo
+0490 6A56          M         clrf reglo + 1
+               00328 ; register address
+0492 969E      00329                 bcf PIR1, SSPIF
+               00330                 COPY_REGISTER SSPBUF, I2C_REG
+0494 C04F FFC9     M         movff src, dst
+               00331                 SET_REGISTER16 I2C_STATE, i2c_read4
+0498 0E52          M         movlw LOW(literal)
+049A 6E4A          M         movwf reglo
+049C 0E04          M         movlw HIGH(literal)
+049E 6E4B          M         movwf reglo + 1
+04A0 0012      00332                 return
+               00333 
+               00334 
+               00335 
+               00336 
+04A2 00337 i2c_read2:
+04A2 B0C5      00338         btfsc SSPCON2, SEN
+04A4 D001      00339         bra i2c_read2_timeout
+04A6 D008      00340                 bra i2c_read2_continue
+               00341 
+04A8 00342 i2c_read2_timeout:
+               00343         INC16 I2C_TIMEOUT_COUNTER
+04A8 4A55          M         infsnz reg, F
+04AA 2A56          M         incf reg + 1, F
+               00344         SKIP_GREATER_LITERAL16 I2C_TIMEOUT_COUNTER, I2C_TIMEOUT
+                   M ; subtract register low from literal low and discard result
+04AC 5055          M         movf reglo, W
+04AE 0860          M         sublw LOW(literal)
+                   M ; subtract register high from literal high and discard result
+04B0 0EEA          M         movlw HIGH(literal)
+04B2 5456          M         subfwb reglo + 1, W
+                   M ; negative if register > literal
+                   M ; testing for N didn't handle all cases
+04B4 B0D8          M         btfsc STATUS, C
+04B6 0012      00345         return
+               00346 
+04B8 00347 i2c_read2_continue:
+               00348                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+04B8 6A55          M         clrf reglo
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 43
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+04BA 6A56          M         clrf reglo + 1
+               00349 ; device address for write
+04BC 969E      00350                 bcf PIR1, SSPIF
+               00351                 COPY_REGISTER SSPBUF, I2C_ADDRESS
+04BE C04E FFC9     M         movff src, dst
+               00352                 SET_REGISTER16 I2C_STATE, i2c_read3
+04C2 0E78          M         movlw LOW(literal)
+04C4 6E4A          M         movwf reglo
+04C6 0E04          M         movlw HIGH(literal)
+04C8 6E4B          M         movwf reglo + 1
+04CA 0012      00353                 return
+               00354 
+               00355 
+               00356 
+               00357 
+04CC 00358 i2c_read1:
+               00359 ; start
+04CC 6A49      00360                 clrf I2C_HAVE_DATA
+04CE 80C5      00361                 bsf SSPCON2, SEN
+               00362                 CLEAR_REGISTER16 I2C_TIMEOUT_COUNTER
+04D0 6A55          M         clrf reglo
+04D2 6A56          M         clrf reglo + 1
+               00363                 CLEAR_REGISTER16 I2C_COUNTER
+04D4 6A4C          M         clrf reglo
+04D6 6A4D          M         clrf reglo + 1
+               00364                 SET_REGISTER16 I2C_STATE, i2c_read2
+04D8 0EA2          M         movlw LOW(literal)
+04DA 6E4A          M         movwf reglo
+04DC 0E04          M         movlw HIGH(literal)
+04DE 6E4B          M         movwf reglo + 1
+04E0 0012      00365                 return
+               00366 
+               00367 
+               00368 
+               00369 
+               00370 
+               00371 
+               00372 
+               00373 
+               00374 
+               00375 
+               00115 
+               00116 
+               00117 
+               00118 
+04E2 00119 loop:
+04E2 0004      00120         clrwdt
+               00121 
+04E4 EC37 F001 00122         call i2c_loop
+04E8 EC77 F002 00123         call handle_imu
+               00124 
+               00125 ifndef PIC_USE_MPU9150
+               00126 
+               00127         btfss PIR1, TXIF
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 44
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00128         bra loop
+               00129 
+               00130                 SKIP_LESS_LITERAL SERIAL_COUNTER, PACKET_SIZE
+               00131                 bra get_next_packet
+               00132 
+               00133                         SET_POINTER0_LITERAL SERIAL_BUF2
+               00134                         ADD POINTER0, SERIAL_COUNTER
+               00135                         COPY_REGISTER TXREG, INDF0
+               00136                         incf SERIAL_COUNTER, f
+               00137                         bra loop
+               00138 
+               00139 get_next_packet:
+               00140         btfss FLAGS, SERIAL_BUF_FULL
+               00141         bra loop
+               00142         
+               00143                 COPY_REGISTER SERIAL_BUF2 + 0,  SERIAL_BUF + 0
+               00144                 COPY_REGISTER SERIAL_BUF2 + 1,  SERIAL_BUF + 1
+               00145                 COPY_REGISTER SERIAL_BUF2 + 2,  SERIAL_BUF + 2
+               00146                 COPY_REGISTER SERIAL_BUF2 + 3,  SERIAL_BUF + 3
+               00147                 COPY_REGISTER SERIAL_BUF2 + 4,  SERIAL_BUF + 4
+               00148                 COPY_REGISTER SERIAL_BUF2 + 5,  SERIAL_BUF + 5
+               00149                 COPY_REGISTER SERIAL_BUF2 + 6,  SERIAL_BUF + 6
+               00150                 COPY_REGISTER SERIAL_BUF2 + 7,  SERIAL_BUF + 7
+               00151                 COPY_REGISTER SERIAL_BUF2 + 8,  SERIAL_BUF + 8
+               00152                 COPY_REGISTER SERIAL_BUF2 + 9,  SERIAL_BUF + 9
+               00153                 COPY_REGISTER SERIAL_BUF2 + 10, SERIAL_BUF + 10
+               00154                 COPY_REGISTER SERIAL_BUF2 + 11, SERIAL_BUF + 11
+               00155                 COPY_REGISTER SERIAL_BUF2 + 12, SERIAL_BUF + 12
+               00156                 COPY_REGISTER SERIAL_BUF2 + 13, SERIAL_BUF + 13
+               00157                 COPY_REGISTER SERIAL_BUF2 + 14, SERIAL_BUF + 14
+               00158                 COPY_REGISTER SERIAL_BUF2 + 15, SERIAL_BUF + 15
+               00159                 clrf SERIAL_COUNTER
+               00160                 bcf FLAGS, SERIAL_BUF_FULL
+               00161 
+               00162 endif ; !PIC_USE_MPU9150
+               00163 
+04EC D7FA      00164                 bra loop
+               00165 
+               00166 
+               00167 
+               00168 
+               00169 
+               00170 
+               00171 
+               00172 
+               00173 
+               00174 
+               00175 
+               00176 
+               00177 
+               00178 
+               00179 
+               00180 
+               00181 
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 45
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00182 
+               00183 
+               00184 
+               00185 
+               00186 
+               00187 
+               00188 
+               00189 
+               00190 
+               00191 
+04EE 00192 handle_imu:
+               00193         SET_PC_REG IMU_STATE
+04EE C002 FFFA     M         movff reg + 1, PCLATH
+04F2 5001          M         movf reg, W
+04F4 6EF9          M         movwf PCL
+               00194 
+               00195 
+               00196 
+04F6 00197 send_results:
+               00198         I2C_READY
+                   M         SKIP_EQUAL_LITERAL16 I2C_STATE, i2c_idle
+04F6 0E76          M         movlw LOW(literal)
+04F8 624A          M         cpfseq reg1
+04FA D002          M         bra $ + 6
+04FC 0E02          M         movlw HIGH(literal)
+04FE 624B          M         cpfseq reg1 + 1
+0500 0012          M         return
+               00199 
+               00200 ;       SET_REGISTER16 IMU_STATE, gyro_status1
+               00201         SET_REGISTER16 IMU_STATE, gyro_status2
+0502 0E6A          M         movlw LOW(literal)
+0504 6E01          M         movwf reglo
+0506 0E05          M         movlw HIGH(literal)
+0508 6E02          M         movwf reglo + 1
+               00202         
+               00203 ifndef PIC_USE_MPU9150
+               00204 ; create packet if enough room
+               00205         btfsc FLAGS, SERIAL_BUF_FULL
+               00206 endif
+               00207 
+               00208 
+050A 0012      00209         return
+               00210 
+               00211 
+               00212 
+               00213 
+               00214 
+               00215 ifdef PIC_USE_MPU9150
+050C 00216 #define GYRO_ADDRESS  B'1101000' << 1
+               00217 
+               00218 
+050C 00219 send_raw_i2c:
+               00220 
+               00221         SKIP_EQUAL_LITERAL16 I2C_STATE, i2c_idle
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 46
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+050C 0E76          M         movlw LOW(literal)
+050E 624A          M         cpfseq reg1
+0510 D002          M         bra $ + 6
+0512 0E02          M         movlw HIGH(literal)
+0514 624B          M         cpfseq reg1 + 1
+0516 D007      00222         bra send_raw_i2c2
+               00223 
+               00224 ; debug
+0518 9A92      00225         bcf TRISA, 5
+051A 7A89      00226         btg LATA, 5
+               00227 
+               00228                 SET_REGISTER16 IMU_STATE, send_results
+051C 0EF6          M         movlw LOW(literal)
+051E 6E01          M         movwf reglo
+0520 0E04          M         movlw HIGH(literal)
+0522 6E02          M         movwf reglo + 1
+0524 0012      00229                 return
+               00230 
+0526 00231 send_raw_i2c2:
+0526 A89E      00232         btfss PIR1, TXIF
+0528 0012      00233         return
+052A A049      00234                 btfss I2C_HAVE_DATA, 0
+052C 0012      00235                 return
+052E 6A49      00236                         clrf I2C_HAVE_DATA
+               00237                         COPY_REGISTER TXREG, I2C_VALUE
+0530 C053 FFAD     M         movff src, dst
+0534 2A44      00238                         incf SERIAL_COUNTER, F
+               00239                         SKIP_GREATEREQUAL_LITERAL SERIAL_COUNTER, 14
+0536 0E0D          M         movlw literal - 1
+0538 6444          M         cpfsgt reg
+053A 0012      00240                         return
+               00241                                 SET_REGISTER16 IMU_STATE, send_results
+053C 0EF6          M         movlw LOW(literal)
+053E 6E01          M         movwf reglo
+0540 0E04          M         movlw HIGH(literal)
+0542 6E02          M         movwf reglo + 1
+0544 0012      00242                                 return
+               00243 
+               00244 
+0546 00245 send_header2:
+0546 A89E      00246         btfss PIR1, TXIF
+0548 0012      00247         return
+               00248                 SET_REGISTER TXREG, SYNC_CODE
+054A 0EE5          M         movlw literal
+054C 6EAD          M         movwf reg
+               00249                 SET_REGISTER16 IMU_STATE, send_raw_i2c
+054E 0E0C          M         movlw LOW(literal)
+0550 6E01          M         movwf reglo
+0552 0E05          M         movlw HIGH(literal)
+0554 6E02          M         movwf reglo + 1
+0556 0012      00250                 return
+               00251 
+               00252 
+0558 00253 send_header1:
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 47
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+0558 A89E      00254         btfss PIR1, TXIF
+055A 0012      00255         return
+               00256                 SET_REGISTER TXREG, 0xff
+055C 0EFF          M         movlw literal
+055E 6EAD          M         movwf reg
+               00257                 SET_REGISTER16 IMU_STATE, send_header2
+0560 0E46          M         movlw LOW(literal)
+0562 6E01          M         movwf reglo
+0564 0E05          M         movlw HIGH(literal)
+0566 6E02          M         movwf reglo + 1
+0568 0012      00258                 return
+               00259 
+               00260 
+056A 00261 gyro_status2:
+               00262         I2C_READY
+                   M         SKIP_EQUAL_LITERAL16 I2C_STATE, i2c_idle
+056A 0E76          M         movlw LOW(literal)
+056C 624A          M         cpfseq reg1
+056E D002          M         bra $ + 6
+0570 0E02          M         movlw HIGH(literal)
+0572 624B          M         cpfseq reg1 + 1
+0574 0012          M         return
+               00263 ;       btfss RESULT, 0
+               00264 ;       bra gyro_status1
+               00265 ; accel, temp, gyros
+               00266                 I2C_READ_DEVICE GYRO_ADDRESS, 0x3b, RAW_DATA, 14
+                   M         SET_REGISTER I2C_ADDRESS, address
+0576 0ED0          M         movlw literal
+0578 6E4E          M         movwf reg
+                   M         SET_REGISTER I2C_REG, reg
+057A 0E3B          M         movlw literal
+057C 6E4F          M         movwf reg
+                   M         SET_REGISTER16 I2C_DST, dst
+057E 0E04          M         movlw LOW(literal)
+0580 6E51          M         movwf reglo
+0582 0E00          M         movlw HIGH(literal)
+0584 6E52          M         movwf reglo + 1
+                   M         SET_REGISTER I2C_BYTES, bytes
+0586 0E0E          M         movlw literal
+0588 6E50          M         movwf reg
+058A EC66 F002     M         call i2c_read1
+058E 6A44      00267                 clrf SERIAL_COUNTER
+               00268 ;               SET_REGISTER16 IMU_STATE, send_results
+               00269                 SET_REGISTER16 IMU_STATE, send_header1
+0590 0E58          M         movlw LOW(literal)
+0592 6E01          M         movwf reglo
+0594 0E05          M         movlw HIGH(literal)
+0596 6E02          M         movwf reglo + 1
+0598 0012      00270                 return
+               00271 
+               00272 ;gyro_status1:
+               00273 ;       I2C_READY
+               00274 ;       I2C_READ_DEVICE GYRO_ADDRESS, 0x3a, RESULT, 1
+               00275 ;       SET_REGISTER16 IMU_STATE, gyro_status2
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 48
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00276 ;       return
+               00277 
+               00278 
+               00279 
+059A 00280 init6:
+               00281         I2C_READY
+                   M         SKIP_EQUAL_LITERAL16 I2C_STATE, i2c_idle
+059A 0E76          M         movlw LOW(literal)
+059C 624A          M         cpfseq reg1
+059E D002          M         bra $ + 6
+05A0 0E02          M         movlw HIGH(literal)
+05A2 624B          M         cpfseq reg1 + 1
+05A4 0012          M         return
+               00282 ; sample rate divider
+               00283 ; high enough to keep i2c from dropping samples
+               00284 ;       I2C_WRITE_DEVICE GYRO_ADDRESS, 0x19, 0x5
+               00285         I2C_WRITE_DEVICE GYRO_ADDRESS, 0x19, 0x0
+                   M         SET_REGISTER I2C_ADDRESS, address
+05A6 0ED0          M         movlw literal
+05A8 6E4E          M         movwf reg
+                   M         SET_REGISTER I2C_REG, reg
+05AA 0E19          M         movlw literal
+05AC 6E4F          M         movwf reg
+                   M         SET_REGISTER I2C_VALUE, value
+05AE 0E00          M         movlw literal
+05B0 6E53          M         movwf reg
+05B2 ECA0 F001     M         call i2c_write1
+               00286 ;       SET_REGISTER16 IMU_STATE, gyro_status1
+               00287         SET_REGISTER16 IMU_STATE, gyro_status2
+05B6 0E6A          M         movlw LOW(literal)
+05B8 6E01          M         movwf reglo
+05BA 0E05          M         movlw HIGH(literal)
+05BC 6E02          M         movwf reglo + 1
+05BE 0012      00288         return
+               00289 
+               00290 
+05C0 00291 init5:
+               00292         I2C_READY
+                   M         SKIP_EQUAL_LITERAL16 I2C_STATE, i2c_idle
+05C0 0E76          M         movlw LOW(literal)
+05C2 624A          M         cpfseq reg1
+05C4 D002          M         bra $ + 6
+05C6 0E02          M         movlw HIGH(literal)
+05C8 624B          M         cpfseq reg1 + 1
+05CA 0012          M         return
+               00293 ; accel config
+               00294         I2C_WRITE_DEVICE GYRO_ADDRESS, 0x1c, 0x00
+                   M         SET_REGISTER I2C_ADDRESS, address
+05CC 0ED0          M         movlw literal
+05CE 6E4E          M         movwf reg
+                   M         SET_REGISTER I2C_REG, reg
+05D0 0E1C          M         movlw literal
+05D2 6E4F          M         movwf reg
+                   M         SET_REGISTER I2C_VALUE, value
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 49
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+05D4 0E00          M         movlw literal
+05D6 6E53          M         movwf reg
+05D8 ECA0 F001     M         call i2c_write1
+               00295         SET_REGISTER16 IMU_STATE, init6
+05DC 0E9A          M         movlw LOW(literal)
+05DE 6E01          M         movwf reglo
+05E0 0E05          M         movlw HIGH(literal)
+05E2 6E02          M         movwf reglo + 1
+05E4 0012      00296         return
+               00297 
+               00298 
+               00299 
+05E6 00300 init4:
+               00301         I2C_READY
+                   M         SKIP_EQUAL_LITERAL16 I2C_STATE, i2c_idle
+05E6 0E76          M         movlw LOW(literal)
+05E8 624A          M         cpfseq reg1
+05EA D002          M         bra $ + 6
+05EC 0E02          M         movlw HIGH(literal)
+05EE 624B          M         cpfseq reg1 + 1
+05F0 0012          M         return
+               00302 ; gyro full scale range
+               00303 ; 250 deg/sec
+               00304         I2C_WRITE_DEVICE GYRO_ADDRESS, 0x1b, 0x00
+                   M         SET_REGISTER I2C_ADDRESS, address
+05F2 0ED0          M         movlw literal
+05F4 6E4E          M         movwf reg
+                   M         SET_REGISTER I2C_REG, reg
+05F6 0E1B          M         movlw literal
+05F8 6E4F          M         movwf reg
+                   M         SET_REGISTER I2C_VALUE, value
+05FA 0E00          M         movlw literal
+05FC 6E53          M         movwf reg
+05FE ECA0 F001     M         call i2c_write1
+               00305         SET_REGISTER16 IMU_STATE, init5
+0602 0EC0          M         movlw LOW(literal)
+0604 6E01          M         movwf reglo
+0606 0E05          M         movlw HIGH(literal)
+0608 6E02          M         movwf reglo + 1
+060A 0012      00306         return
+               00307 
+               00308 
+060C 00309 init3:
+               00310         I2C_READY
+                   M         SKIP_EQUAL_LITERAL16 I2C_STATE, i2c_idle
+060C 0E76          M         movlw LOW(literal)
+060E 624A          M         cpfseq reg1
+0610 D002          M         bra $ + 6
+0612 0E02          M         movlw HIGH(literal)
+0614 624B          M         cpfseq reg1 + 1
+0616 0012          M         return
+               00311 ; I2C master disable
+               00312         I2C_WRITE_DEVICE GYRO_ADDRESS, 0x6a, 0x00
+                   M         SET_REGISTER I2C_ADDRESS, address
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 50
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+0618 0ED0          M         movlw literal
+061A 6E4E          M         movwf reg
+                   M         SET_REGISTER I2C_REG, reg
+061C 0E6A          M         movlw literal
+061E 6E4F          M         movwf reg
+                   M         SET_REGISTER I2C_VALUE, value
+0620 0E00          M         movlw literal
+0622 6E53          M         movwf reg
+0624 ECA0 F001     M         call i2c_write1
+               00313         SET_REGISTER16 IMU_STATE, init4
+0628 0EE6          M         movlw LOW(literal)
+062A 6E01          M         movwf reglo
+062C 0E05          M         movlw HIGH(literal)
+062E 6E02          M         movwf reglo + 1
+0630 0012      00314         return
+               00315 
+               00316 
+               00317 
+0632 00318 init2:
+               00319         I2C_READY
+                   M         SKIP_EQUAL_LITERAL16 I2C_STATE, i2c_idle
+0632 0E76          M         movlw LOW(literal)
+0634 624A          M         cpfseq reg1
+0636 D002          M         bra $ + 6
+0638 0E02          M         movlw HIGH(literal)
+063A 624B          M         cpfseq reg1 + 1
+063C 0012          M         return
+               00320 ; passthrough mode
+               00321         I2C_WRITE_DEVICE GYRO_ADDRESS, 0x37, 0x02
+                   M         SET_REGISTER I2C_ADDRESS, address
+063E 0ED0          M         movlw literal
+0640 6E4E          M         movwf reg
+                   M         SET_REGISTER I2C_REG, reg
+0642 0E37          M         movlw literal
+0644 6E4F          M         movwf reg
+                   M         SET_REGISTER I2C_VALUE, value
+0646 0E02          M         movlw literal
+0648 6E53          M         movwf reg
+064A ECA0 F001     M         call i2c_write1
+               00322         SET_REGISTER16 IMU_STATE, init3
+064E 0E0C          M         movlw LOW(literal)
+0650 6E01          M         movwf reglo
+0652 0E06          M         movlw HIGH(literal)
+0654 6E02          M         movwf reglo + 1
+0656 0012      00323         return
+               00324 
+               00325 
+0658 00326 init1:
+               00327         I2C_READY
+                   M         SKIP_EQUAL_LITERAL16 I2C_STATE, i2c_idle
+0658 0E76          M         movlw LOW(literal)
+065A 624A          M         cpfseq reg1
+065C D002          M         bra $ + 6
+065E 0E02          M         movlw HIGH(literal)
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 51
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+0660 624B          M         cpfseq reg1 + 1
+0662 0012          M         return
+               00328 ; sleep mode & clock
+               00329         I2C_WRITE_DEVICE GYRO_ADDRESS, 0x6b, 0x01
+                   M         SET_REGISTER I2C_ADDRESS, address
+0664 0ED0          M         movlw literal
+0666 6E4E          M         movwf reg
+                   M         SET_REGISTER I2C_REG, reg
+0668 0E6B          M         movlw literal
+066A 6E4F          M         movwf reg
+                   M         SET_REGISTER I2C_VALUE, value
+066C 0E01          M         movlw literal
+066E 6E53          M         movwf reg
+0670 ECA0 F001     M         call i2c_write1
+               00330         SET_REGISTER16 IMU_STATE, init2
+0674 0E32          M         movlw LOW(literal)
+0676 6E01          M         movwf reglo
+0678 0E06          M         movlw HIGH(literal)
+067A 6E02          M         movwf reglo + 1
+067C 0012      00331         return
+               00332 
+               00333 
+               00334 
+               00335 
+               00336 
+               00337 else ; PIC_USE_MPU9150
+               00338 
+               00339 #define GYRO_ADDRESS  B'1101001' << 1
+               00340 #define ACCEL_ADDRESS B'0001111' << 1
+               00341 
+               00342 
+               00343 ; send_results 
+               00344                 SET_REGISTER SERIAL_BUF + 0, 0xff
+               00345                 SET_REGISTER SERIAL_BUF + 1, SYNC_CODE
+               00346                 COPY_REGISTER SERIAL_BUF + 2, RAW_DATA + 0
+               00347                 COPY_REGISTER SERIAL_BUF + 3, RAW_DATA + 1
+               00348                 COPY_REGISTER SERIAL_BUF + 4, RAW_DATA + 2
+               00349                 COPY_REGISTER SERIAL_BUF + 5, RAW_DATA + 3
+               00350                 COPY_REGISTER SERIAL_BUF + 6, RAW_DATA + 4
+               00351                 COPY_REGISTER SERIAL_BUF + 7, RAW_DATA + 5
+               00352                 COPY_REGISTER SERIAL_BUF + 8, RAW_DATA + 6
+               00353                 COPY_REGISTER SERIAL_BUF + 9, RAW_DATA + 7
+               00354                 COPY_REGISTER SERIAL_BUF + 10, RAW_DATA + 8
+               00355                 COPY_REGISTER SERIAL_BUF + 11, RAW_DATA + 9
+               00356                 COPY_REGISTER SERIAL_BUF + 12, RAW_DATA + 10
+               00357                 COPY_REGISTER SERIAL_BUF + 13, RAW_DATA + 11
+               00358                 COPY_REGISTER SERIAL_BUF + 14, RAW_DATA + 12
+               00359                 COPY_REGISTER SERIAL_BUF + 15, RAW_DATA + 13
+               00360                 bsf FLAGS, SERIAL_BUF_FULL
+               00361                 return
+               00362 
+               00363 
+               00364 ; accelerometer only goes at 100Hz
+               00365 accel_status2:
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 52
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00366 
+               00367         I2C_READY
+               00368 
+               00369 
+               00370         btfss RESULT, 4
+               00371         bra send_results
+               00372                 I2C_READ_DEVICE ACCEL_ADDRESS, 0x6, RAW_DATA + 8, 6
+               00373                 SET_REGISTER16 IMU_STATE, send_results
+               00374                 return
+               00375 
+               00376 
+               00377 accel_status1:
+               00378         I2C_READY
+               00379         I2C_READ_DEVICE ACCEL_ADDRESS, 0x18, RESULT, 1
+               00380         SET_REGISTER16 IMU_STATE, accel_status2
+               00381         return
+               00382 
+               00383 
+               00384 ; gyro goes at 1000Hz
+               00385 gyro_status2:
+               00386 
+               00387         I2C_READY
+               00388 
+               00389 
+               00390         btfss RESULT, 0
+               00391         bra gyro_status1
+               00392                 I2C_READ_DEVICE GYRO_ADDRESS, 0x1b, RAW_DATA, 8
+               00393                 SET_REGISTER16 IMU_STATE, accel_status1
+               00394                 return
+               00395 
+               00396 
+               00397 
+               00398 gyro_status1:
+               00399 
+               00400         I2C_READY
+               00401         I2C_READ_DEVICE GYRO_ADDRESS, 0x1a, RESULT, 1
+               00402         SET_REGISTER16 IMU_STATE, gyro_status2
+               00403         return
+               00404 
+               00405 
+               00406 
+               00407 
+               00408 
+               00409 init5:
+               00410         I2C_READY
+               00411 ; accel CTRL_REG1
+               00412         I2C_WRITE_DEVICE ACCEL_ADDRESS, 0x1b, 0xe0
+               00413         SET_REGISTER16 IMU_STATE, gyro_status1
+               00414         return
+               00415 
+               00416 
+               00417 
+               00418 
+               00419 
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 53
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+               00420 init4:
+               00421         I2C_READY
+               00422 ; DATA_CTRL_REG 
+               00423         I2C_WRITE_DEVICE ACCEL_ADDRESS, 0x21, 0x03
+               00424         SET_REGISTER16 IMU_STATE, init5
+               00425         return
+               00426 
+               00427 
+               00428 
+               00429 
+               00430 init3:
+               00431         I2C_READY
+               00432 
+               00433 ; accel CTRL_REG1
+               00434         I2C_WRITE_DEVICE ACCEL_ADDRESS, 0x1b, 0x00
+               00435         SET_REGISTER16 IMU_STATE, init4
+               00436         return
+               00437 
+               00438 
+               00439 
+               00440 
+               00441 
+               00442 init2:
+               00443 
+               00444         I2C_READY
+               00445 ; 2000 deg/sec
+               00446 ; DLPF
+               00447         I2C_WRITE_DEVICE GYRO_ADDRESS, 0x16, 0x18
+               00448         SET_REGISTER16 IMU_STATE, init3
+               00449         return
+               00450 
+               00451 
+               00452 
+               00453 
+               00454 init1:
+               00455 
+               00456         I2C_READY
+               00457 ; sample rate divider
+               00458 ; high enough to keep i2c from dropping samples
+               00459         I2C_WRITE_DEVICE GYRO_ADDRESS, 0x15, 0x7
+               00460         SET_REGISTER16 IMU_STATE, init2
+               00461         return
+               00462 
+               00463 
+               00464 endif ; !PIC_USE_MPU9150
+               00465 
+               00466 
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 54
+
+
+SYMBOL TABLE
+  LABEL                             VALUE 
+
+A                                 00000000
+ABDEN                             00000000
+ABDOVF                            00000007
+ACCESS                            00000000
+ACKDT                             00000005
+ACKEN                             00000004
+ACKSTAT                           00000006
+ACQT0                             00000003
+ACQT1                             00000004
+ACQT2                             00000005
+ACTVIE                            00000002
+ACTVIF                            00000002
+ADCON0                            00000FC2
+ADCON1                            00000FC1
+ADCON2                            00000FC0
+ADCS0                             00000000
+ADCS1                             00000001
+ADCS2                             00000002
+ADDEN                             00000003
+ADDR0                             00000000
+ADDR1                             00000001
+ADDR2                             00000002
+ADDR3                             00000003
+ADDR4                             00000004
+ADDR5                             00000005
+ADDR6                             00000006
+ADEN                              00000003
+ADFM                              00000007
+ADIE                              00000006
+ADIF                              00000006
+ADIP                              00000006
+ADON                              00000000
+ADRES                             00000FC3
+ADRESH                            00000FC4
+ADRESL                            00000FC3
+AN10                              00000004
+AN11                              00000005
+AN3                               00000004
+AN4                               00000000
+AN5                               00000001
+AN6                               00000002
+AN7                               00000003
+AN8                               00000006
+AN9                               00000007
+ANS10                             00000002
+ANS11                             00000003
+ANS3                              00000003
+ANS4                              00000004
+ANS5                              00000005
+ANS6                              00000006
+ANS7                              00000007
+ANS8                              00000000
+ANS9                              00000001
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 55
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+ANSEL                             00000F7E
+ANSELH                            00000F7F
+BANKED                            00000001
+BAUDCON                           00000FB8
+BAUDCTL                           00000FB8
+BCLIE                             00000003
+BCLIF                             00000003
+BCLIP                             00000003
+BF                                00000000
+BOR                               00000000
+BRG16                             00000003
+BRGH                              00000002
+BSR                               00000FE0
+BTOEE                             00000004
+BTOEF                             00000004
+BTSEE                             00000007
+BTSEF                             00000007
+C                                 00000000
+C12IN1M                           00000001
+C12IN2M                           00000002
+C12IN3M                           00000003
+C12INP                            00000000
+C12OUT                            00000004
+C1CH0                             00000000
+C1CH1                             00000001
+C1HYS                             00000003
+C1IE                              00000006
+C1IF                              00000006
+C1IP                              00000006
+C1OE                              00000005
+C1ON                              00000007
+C1OUT                             00000006
+C1POL                             00000004
+C1R                               00000002
+C1RSEL                            00000005
+C1SP                              00000003
+C1SYNC                            00000001
+C2CH0                             00000000
+C2CH1                             00000001
+C2HYS                             00000002
+C2IE                              00000005
+C2IF                              00000005
+C2IP                              00000005
+C2OE                              00000005
+C2ON                              00000007
+C2OUT                             00000006
+C2POL                             00000004
+C2R                               00000002
+C2RSEL                            00000004
+C2SP                              00000003
+C2SYNC                            00000000
+CCP1                              00000005
+CCP1CON                           00000FBD
+CCP1IE                            00000002
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 56
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+CCP1IF                            00000002
+CCP1IP                            00000002
+CCP1M0                            00000000
+CCP1M1                            00000001
+CCP1M2                            00000002
+CCP1M3                            00000003
+CCPR1                             00000FBE
+CCPR1H                            00000FBF
+CCPR1L                            00000FBE
+CFGS                              00000006
+CHS0                              00000002
+CHS1                              00000003
+CHS2                              00000004
+CHS3                              00000005
+CK                                00000007
+CKE                               00000006
+CKP                               00000004
+CKTXP                             00000004
+CLKIN                             00000005
+CLKOUT                            00000004
+CM1CON0                           00000F6D
+CM2CON0                           00000F6B
+CM2CON1                           00000F6C
+CRC16EE                           00000002
+CRC16EF                           00000002
+CRC5EE                            00000001
+CRC5EF                            00000001
+CREN                              00000004
+CSRC                              00000007
+CVREF                             00000002
+D                                 00000005
+D1EN                              00000007
+D1LPS                             00000006
+D1NSS                             00000000
+D1PSS0                            00000002
+D1PSS1                            00000003
+DAC1OE                            00000005
+DAC1R0                            00000000
+DAC1R1                            00000001
+DAC1R2                            00000002
+DAC1R3                            00000003
+DAC1R4                            00000004
+DC                                00000001
+DC1B0                             00000004
+DC1B1                             00000005
+DFN8EE                            00000003
+DFN8EF                            00000003
+DIR                               00000002
+DONE                              00000001
+DTRXP                             00000005
+D_A                               00000005
+ECCP1AS                           00000FB6
+ECCPAS0                           00000004
+ECCPAS1                           00000005
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 57
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+ECCPAS2                           00000006
+ECCPASE                           00000007
+EEADR                             00000FA9
+EEADR0                            00000000
+EEADR1                            00000001
+EEADR2                            00000002
+EEADR3                            00000003
+EEADR4                            00000004
+EEADR5                            00000005
+EEADR6                            00000006
+EEADR7                            00000007
+EEADR8                            00000000
+EEADR9                            00000001
+EEADRH                            00000FAA
+EECON1                            00000FA6
+EECON2                            00000FA7
+EEDATA                            00000FA8
+EEIE                              00000004
+EEIF                              00000004
+EEIP                              00000004
+EEPGD                             00000007
+ENDP0                             00000003
+ENDP1                             00000004
+ENDP2                             00000005
+EPCONDIS                          00000003
+EPHSHK                            00000004
+EPINEN                            00000001
+EPOUTEN                           00000002
+EPSTALL                           00000000
+FAST                              00000001
+FERR                              00000002
+FLAGS                             00000000
+FREE                              00000004
+FRM0                              00000000
+FRM1                              00000001
+FRM10                             00000002
+FRM2                              00000002
+FRM3                              00000003
+FRM4                              00000004
+FRM5                              00000005
+FRM6                              00000006
+FRM7                              00000007
+FRM8                              00000000
+FRM9                              00000001
+FSEN                              00000002
+FSR0                              00000000
+FSR0H                             00000FEA
+FSR0L                             00000FE9
+FSR1                              00000001
+FSR1H                             00000FE2
+FSR1L                             00000FE1
+FSR2                              00000002
+FSR2H                             00000FDA
+FSR2L                             00000FD9
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 58
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+FVR1EN                            00000007
+FVR1S0                            00000004
+FVR1S1                            00000005
+FVR1ST                            00000006
+GCEN                              00000007
+GIE                               00000007
+GIEH                              00000007
+GIEL                              00000006
+GO                                00000001
+GO_DONE                           00000001
+HFIOFL                            00000001
+I2C_ADDRESS                       0000004E
+I2C_BYTES                         00000050
+I2C_COUNTER                       0000004C
+I2C_DST                           00000051
+I2C_HAVE_DATA                     00000049
+I2C_REG                           0000004F
+I2C_STATE                         0000004A
+I2C_TEMP                          00000054
+I2C_TIMEOUT_COUNTER               00000055
+I2C_VALUE                         00000053
+IDLEIE                            00000004
+IDLEIF                            00000004
+IDLEN                             00000007
+IMU_STATE                         00000001
+INDF0                             00000FEF
+INDF1                             00000FE7
+INDF2                             00000FDF
+INT0                              00000000
+INT0E                             00000004
+INT0F                             00000001
+INT0IE                            00000004
+INT0IF                            00000001
+INT1                              00000001
+INT1E                             00000003
+INT1F                             00000000
+INT1IE                            00000003
+INT1IF                            00000000
+INT1IP                            00000006
+INT1P                             00000006
+INT2                              00000002
+INT2E                             00000004
+INT2F                             00000001
+INT2IE                            00000004
+INT2IF                            00000001
+INT2IP                            00000007
+INT2P                             00000007
+INTCON                            00000FF2
+INTCON2                           00000FF1
+INTCON3                           00000FF0
+INTEDG0                           00000006
+INTEDG1                           00000005
+INTEDG2                           00000004
+INTSRC                            00000007
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 59
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+IOCA                              00000F79
+IOCA0                             00000000
+IOCA1                             00000001
+IOCA3                             00000003
+IOCA4                             00000004
+IOCA5                             00000005
+IOCB                              00000F7A
+IOCB4                             00000004
+IOCB5                             00000005
+IOCB6                             00000006
+IOCB7                             00000007
+IOFS                              00000002
+IPEN                              00000007
+IPR1                              00000F9F
+IPR2                              00000FA2
+IRCF0                             00000004
+IRCF1                             00000005
+IRCF2                             00000006
+LATA                              00000F89
+LATA4                             00000004
+LATA5                             00000005
+LATB                              00000F8A
+LATB4                             00000004
+LATB5                             00000005
+LATB6                             00000006
+LATB7                             00000007
+LATC                              00000F8B
+LATC0                             00000000
+LATC1                             00000001
+LATC2                             00000002
+LATC3                             00000003
+LATC4                             00000004
+LATC5                             00000005
+LATC6                             00000006
+LATC7                             00000007
+LFIOFS                            00000000
+MC1OUT                            00000007
+MC2OUT                            00000006
+MSK0                              00000000
+MSK1                              00000001
+MSK2                              00000002
+MSK3                              00000003
+MSK4                              00000004
+MSK5                              00000005
+MSK6                              00000006
+MSK7                              00000007
+N                                 00000004
+NOT_A                             00000005
+NOT_ADDRESS                       00000005
+NOT_BOR                           00000000
+NOT_DONE                          00000001
+NOT_PD                            00000002
+NOT_POR                           00000001
+NOT_RABPU                         00000007
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 60
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+NOT_RI                            00000004
+NOT_SS                            00000006
+NOT_T1SYNC                        00000002
+NOT_T3SYNC                        00000002
+NOT_TO                            00000003
+NOT_W                             00000002
+NOT_WRITE                         00000002
+NVCFG0                            00000000
+NVCFG1                            00000001
+OERR                              00000001
+OSC1                              00000005
+OSC2                              00000004
+OSCCON                            00000FD3
+OSCCON2                           00000FD2
+OSCFIE                            00000007
+OSCFIF                            00000007
+OSCFIP                            00000007
+OSCTUNE                           00000F9B
+OSTS                              00000003
+OV                                00000003
+P                                 00000004
+P1A                               00000005
+P1B                               00000004
+P1C                               00000003
+P1D                               00000002
+P1M0                              00000006
+P1M1                              00000007
+PC                                00000FF9
+PCL                               00000FF9
+PCLATH                            00000FFA
+PCLATU                            00000FFB
+PD                                00000002
+PDC0                              00000000
+PDC1                              00000001
+PDC2                              00000002
+PDC3                              00000003
+PDC4                              00000004
+PDC5                              00000005
+PDC6                              00000006
+PEIE                              00000006
+PEN                               00000002
+PGM                               00000003
+PIDEE                             00000000
+PIDEF                             00000000
+PIE1                              00000F9D
+PIE2                              00000FA0
+PIR1                              00000F9E
+PIR2                              00000FA1
+PKTDIS                            00000004
+PLUSW0                            00000FEB
+PLUSW1                            00000FE3
+PLUSW2                            00000FDB
+POR                               00000001
+PORTA                             00000F80
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 61
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+PORTB                             00000F81
+PORTC                             00000F82
+POSTDEC0                          00000FED
+POSTDEC1                          00000FE5
+POSTDEC2                          00000FDD
+POSTINC0                          00000FEE
+POSTINC1                          00000FE6
+POSTINC2                          00000FDE
+PPB0                              00000000
+PPB1                              00000001
+PPBI                              00000001
+PPBRST                            00000006
+PR2                               00000FCB
+PREINC0                           00000FEC
+PREINC1                           00000FE4
+PREINC2                           00000FDC
+PRI_SD                            00000002
+PROD                              00000FF3
+PRODH                             00000FF4
+PRODL                             00000FF3
+PRSEN                             00000007
+PSA                               00000003
+PSSAC0                            00000002
+PSSAC1                            00000003
+PSSBD0                            00000000
+PSSBD1                            00000001
+PSTRCON                           00000FB9
+PVCFG0                            00000002
+PVCFG1                            00000003
+PWM1CON                           00000FB7
+R                                 00000002
+RA0                               00000000
+RA1                               00000001
+RA3                               00000003
+RA4                               00000004
+RA5                               00000005
+RABIE                             00000003
+RABIF                             00000000
+RABIP                             00000000
+RABPU                             00000007
+RAW_DATA                          00000004
+RB4                               00000004
+RB5                               00000005
+RB6                               00000006
+RB7                               00000007
+RC0                               00000000
+RC1                               00000001
+RC2                               00000002
+RC3                               00000003
+RC4                               00000004
+RC5                               00000005
+RC6                               00000006
+RC7                               00000007
+RCEN                              00000003
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 62
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+RCIDL                             00000006
+RCIE                              00000005
+RCIF                              00000005
+RCIP                              00000005
+RCON                              00000FD0
+RCREG                             00000FAE
+RCSTA                             00000FAB
+RD                                00000000
+RD16                              00000007
+REFCON0                           00000FBA
+REFCON1                           00000FBB
+REFCON2                           00000FBC
+RESULT                            00000003
+RESUME                            00000002
+RI                                00000004
+RSEN                              00000001
+RX                                00000005
+RX9                               00000006
+RX9D                              00000000
+R_W                               00000002
+S                                 00000003
+SBOREN                            00000006
+SCK                               00000006
+SCKP                              00000004
+SCL                               00000006
+SCS0                              00000000
+SCS1                              00000001
+SDA                               00000004
+SDI                               00000004
+SDO                               00000007
+SE0                               00000005
+SEN                               00000000
+SENDB                             00000003
+SERIAL_BUF                        00000024
+SERIAL_BUF2                       00000034
+SERIAL_BUF_FULL                   00000000
+SERIAL_COUNTER                    00000044
+SLRA                              00000000
+SLRB                              00000001
+SLRC                              00000002
+SLRCON                            00000F76
+SMP                               00000007
+SOFIE                             00000006
+SOFIF                             00000006
+SP0                               00000000
+SP1                               00000001
+SP2                               00000002
+SP3                               00000003
+SP4                               00000004
+SPBRG                             00000FAF
+SPBRGH                            00000FB0
+SPEN                              00000007
+SPLLEN                            00000006
+SRCLK0                            00000004
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 63
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+SRCLK1                            00000005
+SRCLK2                            00000006
+SRCON0                            00000F68
+SRCON1                            00000F69
+SREN                              00000005
+SRLEN                             00000007
+SRNQEN                            00000002
+SRPR                              00000000
+SRPS                              00000001
+SRQ                               00000004
+SRQEN                             00000003
+SRRC1E                            00000000
+SRRC2E                            00000001
+SRRCKE                            00000002
+SRRPE                             00000003
+SRSC1E                            00000004
+SRSC2E                            00000005
+SRSCKE                            00000006
+SRSPE                             00000007
+SS                                00000006
+SSPADD                            00000FC8
+SSPBUF                            00000FC9
+SSPCON1                           00000FC6
+SSPCON2                           00000FC5
+SSPEN                             00000005
+SSPIE                             00000003
+SSPIF                             00000003
+SSPIP                             00000003
+SSPM0                             00000000
+SSPM1                             00000001
+SSPM2                             00000002
+SSPM3                             00000003
+SSPMSK                            00000F6F
+SSPOV                             00000006
+SSPSTAT                           00000FC7
+STALLIE                           00000005
+STALLIF                           00000005
+STATUS                            00000FD8
+STKFUL                            00000007
+STKOVF                            00000007
+STKPTR                            00000FFC
+STKUNF                            00000006
+STRA                              00000000
+STRB                              00000001
+STRC                              00000002
+STRD                              00000003
+STRSYNC                           00000004
+SUSPND                            00000001
+SWDTE                             00000000
+SWDTEN                            00000000
+SYNC                              00000004
+T08BIT                            00000006
+T0CKI                             00000005
+T0CON                             00000FD5
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 64
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+T0CS                              00000005
+T0IE                              00000005
+T0IF                              00000002
+T0PS0                             00000000
+T0PS1                             00000001
+T0PS2                             00000002
+T0SE                              00000004
+T13CKI                            00000006
+T1CKPS0                           00000004
+T1CKPS1                           00000005
+T1CON                             00000FCD
+T1OSCEN                           00000003
+T1OSCI                            00000006
+T1OSCO                            00000007
+T1RUN                             00000006
+T1SYNC                            00000002
+T2CKPS0                           00000000
+T2CKPS1                           00000001
+T2CON                             00000FCA
+T2OUTPS0                          00000003
+T2OUTPS1                          00000004
+T2OUTPS2                          00000005
+T2OUTPS3                          00000006
+T3CCP1                            00000003
+T3CKPS0                           00000004
+T3CKPS1                           00000005
+T3CON                             00000FB1
+T3SYNC                            00000002
+TABLAT                            00000FF5
+TBLPTR                            00000FF6
+TBLPTRH                           00000FF7
+TBLPTRL                           00000FF6
+TBLPTRU                           00000FF8
+TEMP0                             00000045
+TMR0H                             00000FD7
+TMR0IE                            00000005
+TMR0IF                            00000002
+TMR0IP                            00000002
+TMR0L                             00000FD6
+TMR0ON                            00000007
+TMR1CS                            00000001
+TMR1H                             00000FCF
+TMR1IE                            00000000
+TMR1IF                            00000000
+TMR1IP                            00000000
+TMR1L                             00000FCE
+TMR1ON                            00000000
+TMR2                              00000FCC
+TMR2IE                            00000001
+TMR2IF                            00000001
+TMR2IP                            00000001
+TMR2ON                            00000002
+TMR3CS                            00000001
+TMR3H                             00000FB3
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 65
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+TMR3IE                            00000001
+TMR3IF                            00000001
+TMR3IP                            00000001
+TMR3L                             00000FB2
+TMR3ON                            00000000
+TO                                00000003
+TOS                               00000FFD
+TOSH                              00000FFE
+TOSL                              00000FFD
+TOSU                              00000FFF
+TRISA                             00000F92
+TRISA4                            00000004
+TRISA5                            00000005
+TRISB                             00000F93
+TRISB4                            00000004
+TRISB5                            00000005
+TRISB6                            00000006
+TRISB7                            00000007
+TRISC                             00000F94
+TRISC0                            00000000
+TRISC1                            00000001
+TRISC2                            00000002
+TRISC3                            00000003
+TRISC4                            00000004
+TRISC5                            00000005
+TRISC6                            00000006
+TRISC7                            00000007
+TRMT                              00000001
+TRNIE                             00000003
+TRNIF                             00000003
+TSEN                              00000003
+TSRS                              00000002
+TUN0                              00000000
+TUN1                              00000001
+TUN2                              00000002
+TUN3                              00000003
+TUN4                              00000004
+TUN5                              00000005
+TX                                00000007
+TX9                               00000006
+TX9D                              00000000
+TXEN                              00000005
+TXIE                              00000004
+TXIF                              00000004
+TXIP                              00000004
+TXREG                             00000FAD
+TXSTA                             00000FAC
+UA                                00000001
+UADDR                             00000F5C
+UCFG                              00000F61
+UCON                              00000F64
+UEIE                              00000F5B
+UEIR                              00000F5F
+UEP0                              00000F53
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 66
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+UEP1                              00000F54
+UEP2                              00000F55
+UEP3                              00000F56
+UEP4                              00000F57
+UEP5                              00000F58
+UEP6                              00000F59
+UEP7                              00000F5A
+UERRIE                            00000001
+UERRIF                            00000001
+UFRMH                             00000F5E
+UFRML                             00000F5D
+UIE                               00000F60
+UIR                               00000F62
+UPUEN                             00000004
+URSTIE                            00000000
+URSTIF                            00000000
+USBEN                             00000003
+USBIE                             00000002
+USBIF                             00000002
+USBIP                             00000002
+USTAT                             00000F63
+UTEYE                             00000007
+VARCURRENT                        00000057
+VAREND                            00000100
+VREFCON0                          00000FBA
+VREFCON1                          00000FBB
+VREFCON2                          00000FBC
+VREFM                             00000001
+VREFP                             00000000
+W                                 00000000
+WCOL                              00000007
+WDTCON                            00000FD1
+WPUA                              00000F77
+WPUA3                             00000003
+WPUA4                             00000004
+WPUA5                             00000005
+WPUB                              00000F78
+WPUB4                             00000004
+WPUB5                             00000005
+WPUB6                             00000006
+WPUB7                             00000007
+WR                                00000001
+WREG                              00000FE8
+WREN                              00000002
+WRERR                             00000003
+WUE                               00000001
+Z                                 00000002
+_BBSIZ_OFF_4L                     000000F7
+_BBSIZ_ON_4L                      000000FF
+_BOREN_NOSLP_2L                   000000FD
+_BOREN_OFF_2L                     000000F9
+_BOREN_ON_2L                      000000FB
+_BOREN_SBORDIS_2L                 000000FF
+_BORV_19_2L                       000000FF
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 67
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+_BORV_22_2L                       000000F7
+_BORV_27_2L                       000000EF
+_BORV_30_2L                       000000E7
+_CONFIG1H                         00300001
+_CONFIG1L                         00300000
+_CONFIG2H                         00300003
+_CONFIG2L                         00300002
+_CONFIG3H                         00300005
+_CONFIG4L                         00300006
+_CONFIG5H                         00300009
+_CONFIG5L                         00300008
+_CONFIG6H                         0030000B
+_CONFIG6L                         0030000A
+_CONFIG7H                         0030000D
+_CONFIG7L                         0030000C
+_CP0_OFF_5L                       000000FF
+_CP0_ON_5L                        000000FE
+_CP1_OFF_5L                       000000FF
+_CP1_ON_5L                        000000FD
+_CPB_OFF_5H                       000000FF
+_CPB_ON_5H                        000000BF
+_CPD_OFF_5H                       000000FF
+_CPD_ON_5H                        0000007F
+_CPUDIV_CLKDIV2_1L                000000EF
+_CPUDIV_CLKDIV3_1L                000000F7
+_CPUDIV_CLKDIV4_1L                000000FF
+_CPUDIV_NOCLKDIV_1L               000000E7
+_DEVID1                           003FFFFE
+_DEVID2                           003FFFFF
+_EBTR0_OFF_7L                     000000FF
+_EBTR0_ON_7L                      000000FE
+_EBTR1_OFF_7L                     000000FF
+_EBTR1_ON_7L                      000000FD
+_EBTRB_OFF_7H                     000000FF
+_EBTRB_ON_7H                      000000BF
+_FCMEN_OFF_1H                     000000BF
+_FCMEN_ON_1H                      000000FF
+_FOSC_ECCLKOUTH_1H                000000F4
+_FOSC_ECCLKOUTL_1H                000000FC
+_FOSC_ECCLKOUTM_1H                000000FA
+_FOSC_ECH_1H                      000000F5
+_FOSC_ECL_1H                      000000FD
+_FOSC_ECM_1H                      000000FB
+_FOSC_ERCCLKOUT_1H                000000F3
+_FOSC_ERC_1H                      000000F7
+_FOSC_HS_1H                       000000F2
+_FOSC_IRCCLKOUT_1H                000000F9
+_FOSC_IRC_1H                      000000F8
+_FOSC_LP_1H                       000000F0
+_FOSC_XT_1H                       000000F1
+_HFOFST_OFF_3H                    000000F7
+_HFOFST_ON_3H                     000000FF
+_IDLOC0                           00200000
+_IDLOC1                           00200001
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 68
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+_IDLOC2                           00200002
+_IDLOC3                           00200003
+_IDLOC4                           00200004
+_IDLOC5                           00200005
+_IDLOC6                           00200006
+_IDLOC7                           00200007
+_IESO_OFF_1H                      0000007F
+_IESO_ON_1H                       000000FF
+_LVP_OFF_4L                       000000FB
+_LVP_ON_4L                        000000FF
+_MCLRE_OFF_3H                     0000007F
+_MCLRE_ON_3H                      000000FF
+_PCLKEN_OFF_1H                    000000DF
+_PCLKEN_ON_1H                     000000FF
+_PLLEN_OFF_1H                     000000EF
+_PLLEN_ON_1H                      000000FF
+_PWRTEN_OFF_2L                    000000FF
+_PWRTEN_ON_2L                     000000FE
+_STVREN_OFF_4L                    000000FE
+_STVREN_ON_4L                     000000FF
+_USBDIV_OFF_1L                    000000DF
+_USBDIV_ON_1L                     000000FF
+_WDTEN_OFF_2H                     000000FE
+_WDTEN_ON_2H                      000000FF
+_WDTPS_1024_2H                    000000F5
+_WDTPS_128_2H                     000000EF
+_WDTPS_16384_2H                   000000FD
+_WDTPS_16_2H                      000000E9
+_WDTPS_1_2H                       000000E1
+_WDTPS_2048_2H                    000000F7
+_WDTPS_256_2H                     000000F1
+_WDTPS_2_2H                       000000E3
+_WDTPS_32768_2H                   000000FF
+_WDTPS_32_2H                      000000EB
+_WDTPS_4096_2H                    000000F9
+_WDTPS_4_2H                       000000E5
+_WDTPS_512_2H                     000000F3
+_WDTPS_64_2H                      000000ED
+_WDTPS_8192_2H                    000000FB
+_WDTPS_8_2H                       000000E7
+_WRT0_OFF_6L                      000000FF
+_WRT0_ON_6L                       000000FE
+_WRT1_OFF_6L                      000000FF
+_WRT1_ON_6L                       000000FD
+_WRTB_OFF_6H                      000000FF
+_WRTB_ON_6H                       000000BF
+_WRTC_OFF_6H                      000000FF
+_WRTC_ON_6H                       000000DF
+_WRTD_OFF_6H                      000000FF
+_WRTD_ON_6H                       0000007F
+_XINST_OFF_4L                     000000BF
+_XINST_ON_4L                      000000FF
+__18F14K50                        00000001
+gyro_status2                      0000056A
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 69
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+handle_imu                        000004EE
+i2c_idle                          00000276
+i2c_loop                          0000026E
+i2c_read1                         000004CC
+i2c_read2                         000004A2
+i2c_read2_continue                000004B8
+i2c_read2_timeout                 000004A8
+i2c_read3                         00000478
+i2c_read3_continue                0000048E
+i2c_read3_timeout                 0000047E
+i2c_read4                         00000452
+i2c_read4_continue                00000468
+i2c_read4_timeout                 00000458
+i2c_read5                         00000422
+i2c_read5_continue                00000438
+i2c_read5_timeout                 00000428
+i2c_read6                         000003FA
+i2c_read6_continue                00000410
+i2c_read6_timeout                 00000400
+i2c_read7                         000003A4
+i2c_read7_continue                000003BA
+i2c_read7_continue2               000003EE
+i2c_read7_timeout                 000003AA
+i2c_read8                         00000374
+i2c_read8_continue                0000038A
+i2c_read8_timeout                 0000037A
+i2c_read9                         00000350
+i2c_read9_continue                00000366
+i2c_read9_timeout                 00000356
+i2c_write1                        00000340
+i2c_write2                        00000316
+i2c_write2_continue               0000032C
+i2c_write2_timeout                0000031C
+i2c_write3                        000002EC
+i2c_write3_continue               00000302
+i2c_write3_timeout                000002F2
+i2c_write4                        000002C2
+i2c_write4_continue               000002D8
+i2c_write4_timeout                000002C8
+i2c_write5                        0000029C
+i2c_write5_continue               000002B2
+i2c_write5_timeout                000002A2
+i2c_write6                        00000278
+i2c_write6_continue               0000028E
+i2c_write6_timeout                0000027E
+init1                             00000658
+init2                             00000632
+init3                             0000060C
+init4                             000005E6
+init5                             000005C0
+init6                             0000059A
+init_i2c                          00000254
+loop                              000004E2
+not_last_byte                     000003EA
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 70
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+read_reg2                         00000410
+send_header1                      00000558
+send_header2                      00000546
+send_raw_i2c                      0000050C
+send_raw_i2c2                     00000526
+send_results                      000004F6
+start                             00000200
+start_delay                       00000230
+BAUD                              500000
+BAUD_RATE_CODE                    (CLOCKSPEED / (BAUD * 4))
+BOOTLOADER_PGC                    PORTB, D'6'
+BOOTLOADER_PGD                    PORTB, D'7'
+BOOTLOADER_PGD_DIR                TRISB, D'7'
+CLOCKSPEED                        32000000
+DDRA                              TRISA
+DDRB                              TRISB
+DDRC                              TRISC
+DDRD                              TRISD
+DDRE                              TRISE
+GYRO_ADDRESS                      B'1101000' << 1
+I2C_TIMEOUT                       60000
+INTVECTORHI                       0x0008
+INTVECTORLO                       0x0018
+PACKET_SIZE                       16
+PIC_USE_MPU9150                   (null)
+PIC_UTIL_INC                      (null)
+POINTER0                          FSR0L
+POINTER1                          FSR1L
+POINTER2                          FSR2L
+RESETVECTOR                       0x0000
+STARTUP_DELAY                     32
+SYNC_CODE                         0xe5
+
+
+MEMORY USAGE MAP ('X' = Used,  '-' = Unused)
+
+00000000 : XXXX----XXXX---- --------XXXX---- ---------------- ----------------
+00000200 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00000240 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00000280 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+000002c0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00000300 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00000340 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00000380 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+000003c0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00000400 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00000440 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00000480 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+000004c0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00000500 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00000540 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00000580 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+000005c0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00000600 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+gpasm-0.13.7 beta               imu.s       4-7-2014  00:35:32           PAGE 71
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+ 
+00000640 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXX--
+
+All other memory blocks unused.
+
+Program Memory Words Used: 581
+
+
+Errors   :       0
+Warnings :       0 reported,       0 suppressed
+Messages :       0 reported,       0 suppressed
+

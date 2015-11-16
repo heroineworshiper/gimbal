@@ -1,0 +1,20 @@
+SYSCLK_Frequency=168000000 
+SystemCoreClock=168000000 
+HCLK_Frequency=168000000 
+PCLK1_Frequency=42000000 
+PCLK2_Frequency=84000000 
+done
+Erasing flash sector 10 
+done
+Writing flash address 80c0000  bytes 44632 
+done
+Jumping to 0x80c0189 
+
+
+
+gimbal.c: main 879: Welcome to gimbal controller
+linux.c: kmalloc 105: result=0x200009d4  size=32  used=32 
+linux.c: kmalloc 105: result=0x200009f4  size=16  used=48 
+linux.c: kmalloc 105: result=0x20000a04  size=32  used=80 
+imu.c: imu_send_results 168: center -210.355 -189.480 -92.031 -3260 
+imu.c: imu_send_results 168: center -15.492 4.734 -8.660 -15441 

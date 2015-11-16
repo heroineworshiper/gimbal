@@ -1,0 +1,350 @@
+
+
+#include "stm32f4xx.h"
+#include "stm32f4xx_rcc.h"
+#include "stm32f4xx_gpio.h"
+#include "stm32f4xx_tim.h"
+#include "uart.h"
+#include "linux.h"
+#include "math.h"
+#include "gimbal.h"
+#include "mpu9150.h"
+#include "copter.h"
+
+
+
+gimbal_t gimbal;
+
+
+static int debug_counter = 0;
+
+
+#define WAVEFORM_SIZE sizeof(sin_table)
+#define PWM_PERIOD 255
+#define MAX_SIN 255
+
+static const uint8_t sin_table[] = {
+        0x7f, 0x82, 0x85, 0x88, 0x8b, 0x8f, 0x92, 0x95, 0x98, 0x9b, 0x9e, 0xa1, 0xa4, 0xa7, 0xaa, 0xad, 
+        0xb0, 0xb3, 0xb6, 0xb8, 0xbb, 0xbe, 0xc1, 0xc3, 0xc6, 0xc8, 0xcb, 0xcd, 0xd0, 0xd2, 0xd5, 0xd7, 
+        0xd9, 0xdb, 0xdd, 0xe0, 0xe2, 0xe4, 0xe5, 0xe7, 0xe9, 0xeb, 0xec, 0xee, 0xef, 0xf1, 0xf2, 0xf4, 
+        0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0xfb, 0xfb, 0xfc, 0xfd, 0xfd, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 
+        0xff, 0xfe, 0xfe, 0xfe, 0xfe, 0xfe, 0xfd, 0xfd, 0xfc, 0xfb, 0xfb, 0xfa, 0xf9, 0xf8, 0xf7, 0xf6, 
+        0xf5, 0xf4, 0xf2, 0xf1, 0xef, 0xee, 0xec, 0xeb, 0xe9, 0xe7, 0xe5, 0xe4, 0xe2, 0xe0, 0xdd, 0xdb, 
+        0xd9, 0xd7, 0xd5, 0xd2, 0xd0, 0xcd, 0xcb, 0xc8, 0xc6, 0xc3, 0xc1, 0xbe, 0xbb, 0xb8, 0xb6, 0xb3, 
+        0xb0, 0xad, 0xaa, 0xa7, 0xa4, 0xa1, 0x9e, 0x9b, 0x98, 0x95, 0x92, 0x8f, 0x8b, 0x88, 0x85, 0x82, 
+        0x7f, 0x7c, 0x79, 0x76, 0x73, 0x6f, 0x6c, 0x69, 0x66, 0x63, 0x60, 0x5d, 0x5a, 0x57, 0x54, 0x51, 
+        0x4e, 0x4b, 0x48, 0x46, 0x43, 0x40, 0x3d, 0x3b, 0x38, 0x36, 0x33, 0x31, 0x2e, 0x2c, 0x29, 0x27, 
+        0x25, 0x23, 0x21, 0x1e, 0x1c, 0x1a, 0x19, 0x17, 0x15, 0x13, 0x12, 0x10, 0x0f, 0x0d, 0x0c, 0x0a, 
+        0x09, 0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x03, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x02, 0x03, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 
+        0x09, 0x0a, 0x0c, 0x0d, 0x0f, 0x10, 0x12, 0x13, 0x15, 0x17, 0x19, 0x1a, 0x1c, 0x1e, 0x21, 0x23, 
+        0x25, 0x27, 0x29, 0x2c, 0x2e, 0x31, 0x33, 0x36, 0x38, 0x3b, 0x3d, 0x40, 0x43, 0x46, 0x48, 0x4b, 
+        0x4e, 0x51, 0x54, 0x57, 0x5a, 0x5d, 0x60, 0x63, 0x66, 0x69, 0x6c, 0x6f, 0x73, 0x76, 0x79, 0x7c
+};
+
+
+#define CALCULATE_WAVEFORM(x) ((int)sin_table[x] * gimbal.max_pwm / MAX_SIN)
+
+// write motor phase to hardware
+void write_motor(int number)
+{
+	int index1 = (gimbal.phase[number] * WAVEFORM_SIZE / 360 / FRACTION) % WAVEFORM_SIZE;
+	int index2 = (index1 + 120 * WAVEFORM_SIZE / 360) % WAVEFORM_SIZE;
+	int index3 = (index1 + 240 * WAVEFORM_SIZE / 360) % WAVEFORM_SIZE;
+	switch(number)
+	{
+		case 0:
+			TIM5->CCR1 = CALCULATE_WAVEFORM(index1);
+			TIM5->CCR2 = CALCULATE_WAVEFORM(index2);
+			TIM5->CCR3 = CALCULATE_WAVEFORM(index3);
+			break;
+		case 1:
+			TIM3->CCR1 = CALCULATE_WAVEFORM(index1);
+			TIM3->CCR2 = CALCULATE_WAVEFORM(index2);
+			TIM3->CCR3 = CALCULATE_WAVEFORM(index3);
+			break;
+		case 2:
+			TIM1->CCR1 = CALCULATE_WAVEFORM(index1);
+			TIM1->CCR2 = CALCULATE_WAVEFORM(index2);
+			TIM1->CCR3 = CALCULATE_WAVEFORM(index3);
+			break;
+	}
+}
+
+
+
+static void test_motors()
+{
+	int i, j;
+	int motor = 0;
+	int step = 1;
+	int delay = 1;
+	while(1)
+	{
+		for(j = 0; j  < 5; j++)
+		{
+			for(i = 0; i < 360; i += step)
+			{
+				gimbal.phase[motor] = i * FRACTION;
+				write_motor(motor);
+				mdelay(delay);
+			}
+		}
+		
+/*
+ * 		for(j = 0; j  < 5; j++)
+ * 		{
+ * 			for(i = 360; i >= 0; i -= step)
+ * 			{
+ * 				gimbal.phase[motor] = i * FRACTION;
+ * 				write_motor(motor);
+ * 				mdelay(delay);
+ * 			}
+ * 		}
+ */
+		
+	}
+}
+
+
+static void feedback()
+{
+	imu.got_ahrs = 0;
+	int error = get_angle_change_fixed(imu.current_roll, 
+		gimbal.target_roll);
+	int step = do_pid(&gimbal.roll_pid, 
+		error,
+		-imu.gyro_x / FRACTION);
+//	gimbal.phase[1] += step;
+//	gimbal.phase[1] %= 360 * FRACTION;
+
+	error = get_angle_change_fixed(imu.current_pitch, 
+		gimbal.target_pitch);
+	step = do_pid(&gimbal.pitch_pid, 
+		error,
+		-imu.gyro_y / FRACTION);
+	gimbal.phase[0] -= step;
+	gimbal.phase[0] %= 360 * FRACTION;
+
+
+debug_counter++;
+if(!(debug_counter % 100))
+{
+TRACE2
+//print_number(-imu.gyro_y / FRACTION);
+print_fixed(error);
+print_number(step);
+}
+
+	error = get_angle_change_fixed(imu.current_heading, 
+		gimbal.target_heading);
+	step = do_pid(&gimbal.pitch_pid, 
+		error,
+		-imu.gyro_z / FRACTION);
+	gimbal.phase[2] += step;
+	gimbal.phase[2] %= 360 * FRACTION;
+
+	write_motor(0);
+}
+
+
+
+
+
+void init_motors()
+{
+	int i;
+
+	GPIO_InitTypeDef  GPIO_InitStructure;
+	TIM_TimeBaseInitTypeDef  TIM_TimeBaseStructure;
+	TIM_OCInitTypeDef  TIM_OCInitStructure;
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM1, ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
+	RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM5, ENABLE);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource0, GPIO_AF_TIM5);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource1, GPIO_AF_TIM5);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource2, GPIO_AF_TIM5);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource6, GPIO_AF_TIM3);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource7, GPIO_AF_TIM3);
+	GPIO_PinAFConfig(GPIOB, GPIO_PinSource0, GPIO_AF_TIM3);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource8, GPIO_AF_TIM1);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource9, GPIO_AF_TIM1);
+	GPIO_PinAFConfig(GPIOA, GPIO_PinSource10, GPIO_AF_TIM1);
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | 
+		GPIO_Pin_1 | 
+		GPIO_Pin_2 | 
+		GPIO_Pin_6 |
+		GPIO_Pin_7 |
+		GPIO_Pin_8 |
+		GPIO_Pin_9 |
+		GPIO_Pin_10;
+	GPIO_ResetBits(GPIOA, GPIO_InitStructure.GPIO_Pin);
+	GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
+	GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+	GPIO_InitStructure.GPIO_Speed = GPIO_Speed_100MHz;
+	GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
+	GPIO_Init(GPIOA, &GPIO_InitStructure);
+	GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0;
+	GPIO_ResetBits(GPIOB, GPIO_InitStructure.GPIO_Pin);
+	GPIO_Init(GPIOB, &GPIO_InitStructure);
+
+
+	TIM_TimeBaseStructure.TIM_Period = PWM_PERIOD;
+	TIM_TimeBaseStructure.TIM_Prescaler = 10;
+	TIM_TimeBaseStructure.TIM_ClockDivision = 0;
+	TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+	TIM_TimeBaseInit(TIM1, &TIM_TimeBaseStructure);
+	TIM_TimeBaseInit(TIM3, &TIM_TimeBaseStructure);
+	TIM_TimeBaseInit(TIM5, &TIM_TimeBaseStructure);
+
+// all motors start as off
+	TIM_OCInitStructure.TIM_OCMode = TIM_OCMode_PWM1;
+	TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
+	TIM_OCInitStructure.TIM_OCPolarity = TIM_OCPolarity_High;
+	TIM_OCInitStructure.TIM_OCIdleState = TIM_OCIdleState_Reset;
+	TIM_OCInitStructure.TIM_Pulse = 0;
+	TIM_OC3Init(TIM1, &TIM_OCInitStructure);
+	TIM_OC1Init(TIM1, &TIM_OCInitStructure);
+	TIM_OC2Init(TIM1, &TIM_OCInitStructure);
+	TIM_OC3Init(TIM3, &TIM_OCInitStructure);
+	TIM_OC1Init(TIM3, &TIM_OCInitStructure);
+	TIM_OC2Init(TIM3, &TIM_OCInitStructure);
+	TIM_OC3Init(TIM5, &TIM_OCInitStructure);
+	TIM_OC1Init(TIM5, &TIM_OCInitStructure);
+	TIM_OC2Init(TIM5, &TIM_OCInitStructure);
+  	TIM_Cmd(TIM1, ENABLE);
+ 	TIM_CtrlPWMOutputs(TIM1, ENABLE);
+  	TIM_Cmd(TIM3, ENABLE);
+ 	TIM_CtrlPWMOutputs(TIM3, ENABLE);
+  	TIM_Cmd(TIM5, ENABLE);
+ 	TIM_CtrlPWMOutputs(TIM5, ENABLE);
+
+
+}
+
+void init_feedback()
+{
+// inputs are degrees * FRACTION
+	init_pid(&gimbal.roll_pid, 
+		0, // p factor * FRACTION
+		0, // i factor * FRACTION
+		0,  // d factor * FRACTION
+		1 * FRACTION, // p limit  * FRACTION
+		1 * FRACTION,  /// i limit * FRACTION
+		1 * FRACTION, // d limit * FRACTION
+		6 * FRACTION);  // out limit * FRACTION
+	init_pid(&gimbal.pitch_pid, 
+		32, // p factor * FRACTION
+		1, // i factor * FRACTION
+		32,  // d factor * FRACTION
+		8 * FRACTION, // p limit  * FRACTION
+		1 * FRACTION,  /// i limit * FRACTION
+		8 * FRACTION, // d limit * FRACTION
+		8 * FRACTION);  // out limit * FRACTION
+	init_pid(&gimbal.heading_pid, 
+		0, // p factor * FRACTION
+		0, // i factor * FRACTION
+		0,  // d factor * FRACTION
+		1 * FRACTION, // p limit  * FRACTION
+		1 * FRACTION,  /// i limit * FRACTION
+		1 * FRACTION, // d limit * FRACTION
+		6 * FRACTION);  // out limit * FRACTION
+	
+}
+
+
+int main()
+{
+	bzero(&gimbal, sizeof(gimbal_t));
+	
+	RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA |
+			RCC_AHB1Periph_GPIOB |
+			RCC_AHB1Periph_GPIOC |
+			RCC_AHB1Periph_GPIOD |
+			RCC_AHB1Periph_GPIOE |
+			RCC_AHB1Periph_CCMDATARAMEN, 
+		ENABLE);
+// general purpose timer
+	TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
+	RCC_APB2PeriphClockCmd(RCC_APB2Periph_TIM10, ENABLE);
+	TIM_DeInit(TIM10);
+	TIM_TimeBaseStructInit(&TIM_TimeBaseStructure);
+	TIM_TimeBaseStructure.TIM_Period = 65535;
+	TIM_TimeBaseStructure.TIM_Prescaler = 8;
+	TIM_TimeBaseStructure.TIM_ClockDivision = 0;
+	TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
+	TIM_TimeBaseInit(TIM10, &TIM_TimeBaseStructure);
+	TIM_Cmd(TIM10, ENABLE);
+
+	gimbal.max_pwm = 140;
+	gimbal.feedback_downsample = 1;
+
+
+	init_uart();
+	TRACE
+	print_text("Welcome to gimbal controller\n");
+	flush_uart();
+	
+	init_motors();
+	init_feedback();
+	init_imu();
+	
+//	test_motors();
+
+
+	while(1)
+	{
+		if(TIM10->SR & TIM_FLAG_Update)
+		{
+			gimbal.timer++;
+			TIM10->SR = ~TIM_FLAG_Update;
+			
+			if(!(gimbal.timer % 300))
+			{
+/*
+ * 				TRACE2
+ * 				print_text("accel=");
+ * 				print_number(imu.total_accel);
+ * 				print_text("mag=");
+ * 				print_number(imu.total_mag);
+ * 				print_text("gyro=");
+ * 				print_number(imu.total_gyro);
+ */
+				imu.total_accel = imu.total_mag = imu.total_gyro = 0;
+			}
+		}
+
+
+
+		HANDLE_IMU
+		if(imu.got_ahrs)
+		{
+			gimbal.feedback_counter++;
+			if(gimbal.feedback_counter >= gimbal.feedback_downsample)
+			{
+				gimbal.feedback_counter = 0;
+				feedback();
+			}
+		}
+
+		handle_uart();
+	}
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

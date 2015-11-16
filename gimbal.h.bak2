@@ -1,0 +1,64 @@
+#ifndef GIMBAL_H
+#define GIMBAL_H
+
+
+#include "math.h"
+#include "pid.h"
+
+#define TOTAL_MOTORS 3
+
+typedef struct
+{
+	int dump_freqs;
+	int roll_motor;
+	int pitch_motor;
+	int heading_motor;
+// lock axes for calibration
+	int lock_roll;
+	int lock_pitch;
+	int lock_heading;
+// amount of torque is determined by this 0 - 255
+	int power[TOTAL_MOTORS];
+
+
+
+
+	int timer;
+	int feedback_counter;
+	int feedback_downsample;
+// phase of each motor (0 - 360) * FRACTION
+	int phase[TOTAL_MOTORS];
+
+// target in deg * FRACTION
+	int target_roll;
+	int target_pitch;
+	int target_heading;
+	
+	derivative_t roll_accel;
+	derivative_t pitch_accel;
+	derivative_t heading_accel;
+
+// angle -> turn rate
+	pid_t roll_pid;
+	pid_t pitch_pid;
+	pid_t heading_pid;
+
+// turn rate -> step
+	pid_t roll_pid2;
+	pid_t pitch_pid2;
+	pid_t heading_pid2;
+
+	
+} gimbal_t;
+
+
+extern gimbal_t gimbal;
+
+
+
+
+#endif
+
+
+
+

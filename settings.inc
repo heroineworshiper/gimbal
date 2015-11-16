@@ -1,0 +1,1 @@
+../copter/pic/settings.inc

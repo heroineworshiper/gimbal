@@ -1,0 +1,39 @@
+#ifndef GIMBAL_H
+#define GIMBAL_H
+
+
+#include "pid.h"
+
+
+typedef struct
+{
+	int timer;
+// amount of torque is determined by this
+	int max_pwm;
+	int feedback_counter;
+	int feedback_downsample;
+// phase of each motor (0 - 360) * FRACTION
+	int phase[3];
+	
+	int target_roll;
+	int target_pitch;
+	int target_heading;
+	
+	pid_t roll_pid;
+	pid_t pitch_pid;
+	pid_t heading_pid;
+
+	
+} gimbal_t;
+
+
+extern gimbal_t gimbal;
+
+
+
+
+#endif
+
+
+
+
