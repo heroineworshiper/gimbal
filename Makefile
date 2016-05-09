@@ -3,6 +3,13 @@ OBJCOPY := /opt/arm/bin/arm-elf-objcopy
 ARM_CFLAGS := -O2 -c -I. -Irtlwifi -Iarm -Istm32f4 -fno-builtin -mthumb -mcpu=cortex-m4 -mlittle-endian -ffreestanding 
 ARM_LFLAGS := -fno-builtin -mthumb -mcpu=cortex-m4 -mlittle-endian -ffreestanding -nostdlib -nostdinc -L/opt/arm/lib/gcc/arm-elf/4.1.1/
 
+AVR_DIR := /amazon/root/arduino-1.6.7/hardware/tools/avr/bin/
+AVR_GCC := $(AVR_DIR)avr-gcc
+AVR_OBJCOPY := $(AVR_DIR)avr-objcopy -j .text -j .data -O ihex
+AVR_DUDE := avrdude -v -patmega328p -cstk500v1 -P/dev/ttyACM0 -b19200
+AVR_CFLAGS := -O2 -mmcu=atmega328p
+AVR_LFLAGS := -O2 -mmcu=atmega328p -Wl,--section-start=.text=0x0000 -nostdlib
+
 ARM_OBJS := \
 	stm32f4/startup_main.o \
 	stm32f4/usb_hcd_int.o \
@@ -55,6 +62,26 @@ ARM_BOOTLOADER_OBJS := \
 
 
 all: tables gimbal.bin bootloader.bin imu.hex
+
+
+# compile feiyu.hex
+feiyu.hex: feiyu2.c avr_debug.c
+	$(AVR_GCC) $(AVR_CFLAGS) -o feiyu.o feiyu2.c avr_debug.c
+	$(AVR_GCC) $(AVR_LFLAGS) -o feiyu.elf feiyu.o
+	$(AVR_OBJCOPY) feiyu.elf feiyu.hex
+
+# program standalone atmega328 fuses
+# might need to program 1 fuse at a time
+feiyu_fuse:
+#	$(AVR_DUDE) -Ulock:w:0x3F:m -Uefuse:w:0x05:m -Uhfuse:w:0xDA:m -Ulfuse:w:0xE2:m 
+	$(AVR_DUDE) -Ulock:w:0x3F:m -Ulfuse:w:0xE2:m 
+	$(AVR_DUDE) -Ulock:w:0x3F:m -Uhfuse:w:0xDA:m
+	$(AVR_DUDE) -Ulock:w:0x3F:m -Uefuse:w:0x05:m
+
+# program feiyu.hex
+feiyu_isp: feiyu.hex
+	$(AVR_DUDE) -Uflash:w:feiyu.hex:i -Ulock:w:0x0F:m
+
 
 imu.hex: imu.s hardi2c.s hardi2c.inc
 	gpasm -o imu.hex imu.s
