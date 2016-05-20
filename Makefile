@@ -61,7 +61,62 @@ ARM_BOOTLOADER_OBJS := \
 	stm32f4/stm32f4xx_usart.o
 
 
-all: tables gimbal.bin bootloader.bin imu.hex
+GCC_FEIYU := /opt/gcc-arm-none-eabi-4_9-2015q1/bin/arm-none-eabi-gcc
+OBJCOPY_FEIYU := /opt/gcc-arm-none-eabi-4_9-2015q1/bin/arm-none-eabi-objcopy
+FEIYU_CFLAGS := -O2 -fno-builtin -mthumb -mcpu=cortex-m3 -mlittle-endian -ffreestanding -DSTM32F103xB -Istm32f103
+FEIYU_LFLAGS := -fno-builtin -mthumb -mcpu=cortex-m3 -mlittle-endian -ffreestanding
+
+FEIYU_OBJS := \
+	startup_stm32f103xb.o \
+	system_stm32f1xx.o \
+	stm32f1xx_hal_cortex.o \
+	stm32f1xx_hal_flash.o \
+	stm32f1xx_hal_flash_ex.o \
+	stm32f1xx_hal_gpio.o \
+	stm32f1xx_hal_rcc.o \
+	stm32f1xx_hal_uart.o \
+	stm32f1xx_hal.o \
+	feiyu_bootloader.o \
+	arm_linux.o \
+	feiyu_uart.o
+
+FEIYU_MANE_OBJS := \
+	feiyu_mane.o 
+
+FEIYU_COMMON_OBJS := \
+	startup_stm32f103xb.o \
+	system_stm32f1xx.o \
+	stm32f1xx_hal_cortex.o \
+	stm32f1xx_hal_gpio.o \
+	stm32f1xx_hal_rcc.o \
+	stm32f1xx_hal_uart.o \
+	stm32f1xx_hal.o \
+	arm_linux.o \
+	feiyu_uart.o
+	
+#	stm32f1xx_hal_tim.o \
+
+
+#all: feiyu_bootloader.bin tables gimbal.bin bootloader.bin imu.hex
+all: feiyu_bootloader.bin feiyu_mane.bin feiyu_program
+
+feiyu_program: feiyu_program.c
+	gcc -o feiyu_program feiyu_program.c
+
+feiyu_mane.bin: feiyu_bootloader.bin $(FEIYU_MANE_OBJS)
+	$(GCC_FEIYU) -o feiyu_mane.elf \
+		$(FEIYU_MANE_OBJS) \
+		$(FEIYU_COMMON_OBJS) \
+		$(FEIYU_LFLAGS) \
+		-Tfeiyu_mane.ld
+	$(OBJCOPY_FEIYU) -O binary feiyu_mane.elf feiyu_mane.bin
+
+feiyu_bootloader.bin: $(FEIYU_OBJS)
+	$(GCC_FEIYU) -o feiyu_bootloader.elf \
+		$(FEIYU_OBJS) \
+		$(FEIYU_LFLAGS) \
+		-TSTM32F103XB_FLASH.ld
+	$(OBJCOPY_FEIYU) -O binary feiyu_bootloader.elf feiyu_bootloader.bin
 
 
 # compile feiyu.hex
@@ -108,8 +163,31 @@ bootloader.o stm32f4/startup_boot.o stm32f4/system_stm32f4xx.o:
 $(ARM_OBJS):
 	$(GCC_ARM) $(ARM_CFLAGS) -c $< -o $*.o
 
+$(FEIYU_OBJS) $(FEIYU_MANE_OBJS):
+	$(GCC_FEIYU) $(FEIYU_CFLAGS) -c $< -o $*.o
+
 clean:
-	rm -f *.o stm32f4/*.o gimbal.elf gimbal.bin
+	rm -f *.o *.elf *.bin *.hex stm32f4/*.o 
+
+
+# Feiyu objs
+startup_stm32f103xb.o: startup_stm32f103xb.s
+system_stm32f1xx.o: system_stm32f1xx.c
+feiyu_bootloader.o: feiyu_bootloader.c
+feiyu_mane.o: feiyu_mane.c
+arm_linux.o: arm_linux.c
+feiyu_uart.o: feiyu_uart.c
+stm32f1xx_hal_uart.o: stm32f1xx_hal_uart.c
+stm32f1xx_hal_gpio.o: stm32f1xx_hal_gpio.c
+stm32f1xx_hal_rcc.o: stm32f1xx_hal_rcc.c
+stm32f1xx_hal.o: stm32f1xx_hal.c
+stm32f1xx_hal_dma.o: stm32f1xx_hal_dma.c
+stm32f1xx_hal_cortex.o: stm32f1xx_hal_cortex.c
+stm32f1xx_hal_tim.o: stm32f1xx_hal_tim.c
+stm32f1xx_hal_flash.o: stm32f1xx_hal_flash.c
+stm32f1xx_hal_flash_ex.o: stm32f1xx_hal_flash_ex.c
+
+
 
 
 stm32f4/startup_main.o:       stm32f4/startup_main.s
