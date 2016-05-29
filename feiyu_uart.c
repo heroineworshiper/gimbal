@@ -9,7 +9,9 @@ uart_t uart;
 uart_t uart2;
 UART_HandleTypeDef UartHandle;
 
+#ifndef BOARD2
 UART_HandleTypeDef UartHandle2;
+#endif // !BOARD2
 
 
 const char hex_table[] = 
@@ -53,33 +55,8 @@ void init_uart()
 	HAL_NVIC_EnableIRQ(USART3_IRQn);
 
 
-#else // !BOARD2
-
-	UartHandle2.Instance        = PASS_UART;
-	HAL_UART_DeInit(&UartHandle2);
-	HAL_NVIC_DisableIRQ(USART3_IRQn);
-
-
-#endif // BOARD2
-}
-
-#ifdef BOARD2
-void HAL_UART_MspDeInit(UART_HandleTypeDef *huart)
-{
-  /*##-1- Reset peripherals ##################################################*/
-  __HAL_RCC_USART3_FORCE_RESET();
-  __HAL_RCC_USART3_RELEASE_RESET();
-
-  /*##-2- Disable peripherals and GPIO Clocks #################################*/
-  /* Configure UART Tx as alternate function  */
-  HAL_GPIO_DeInit(PASS_UART_TX_GPIO, PASS_UART_TX_PIN);
-  /* Configure UART Rx as alternate function  */
-  HAL_GPIO_DeInit(PASS_UART_RX_GPIO, PASS_UART_RX_PIN);
-
-}
 #endif // !BOARD2
-
-
+}
 
 void HAL_UART_MspInit(UART_HandleTypeDef *huart)
 {

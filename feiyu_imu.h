@@ -12,6 +12,9 @@ typedef struct
 	int bytes;
 	int current_byte;
 	unsigned char i2c_buffer[16];
+	int time;
+	int time2;
+	int count;
 } imu_t;
 
 extern imu_t imu;

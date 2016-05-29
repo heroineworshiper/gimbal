@@ -30,6 +30,24 @@
 #define SET_COMPARE(tim, number, value) { tim->number = value; }
 
 
+#define READ_UINT16(buffer, offset) \
+({ \
+	offset += 2; \
+	(uint16_t)(buffer[offset - 2] | (buffer[offset - 1] << 8)); \
+})
+
+#define READ_INT16(buffer, offset) \
+({ \
+	offset += 2; \
+	(int16_t)(buffer[offset - 2] | (buffer[offset - 1] << 8)); \
+})
+
+#define READ_INT16BE(buffer, offset) \
+({ \
+	offset += 2; \
+	(int16_t)(buffer[offset - 1] | (buffer[offset - 2] << 8)); \
+})
+
 #define SQR(x) ((x) * (x))
 
 #ifndef M_PI

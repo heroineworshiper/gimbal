@@ -28,7 +28,9 @@
 
 
 
-// disable all to build the bootloader
+// enable a board to build the bootloader or mane program
+// board 2 needs a bootloader without UART3.  
+// A better way is to only enable UART3 after passthrough mode is enabled.
 // yaw board
 //#define BOARD0
 // roll board
@@ -67,6 +69,8 @@
 
 // frequency of the mane timer
 #define HZ 1000
+// frequency of the IMU, determined by sample rate divider
+#define IMU_HZ 400
 
 extern volatile int mane_time;
 

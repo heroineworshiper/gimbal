@@ -300,6 +300,12 @@ HAL_StatusTypeDef HAL_UART_Init(UART_HandleTypeDef *huart)
 }
 
 
+
+
+
+
+
+#if 0
 /**
   * @brief  DeInitializes the UART peripheral. 
   * @param  huart: Pointer to a UART_HandleTypeDef structure that contains
@@ -341,12 +347,6 @@ HAL_StatusTypeDef HAL_UART_DeInit(UART_HandleTypeDef *huart)
 
 
 
-
-
-
-
-
-#if 0
 
 /**
   * @brief  Initializes the half-duplex mode according to the specified
