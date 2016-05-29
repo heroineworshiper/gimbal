@@ -3,7 +3,6 @@
 
 #include "feiyu_mane.h"
 #include <stdint.h>
-#include "settings.h"
 #include "stm32f1xx_hal_usart.h"
 
 #define TRACE trace(__FILE__, __FUNCTION__, __LINE__, 1);
@@ -31,14 +30,20 @@ typedef struct
 
 // connected to debugger
 extern uart_t uart;
+
+#ifndef BOARD2
+
 // connected to next chip
 extern uart_t uart2;
+#endif
+
 
 void init_uart();
 int sprint_number(unsigned char *dst, int number, int maxlen);
 void print_float(float number);
 void print_fixed(int number);
 void print_fixed_nospace(int number);
+void print_hex8(uart_t *uart, uint32_t number);
 void print_hex2(uart_t *uart, uint32_t number);
 void print_hex(uart_t *uart, uint32_t number);
 void print_number(uart_t *uart, int number);
@@ -59,22 +64,37 @@ unsigned char uart_get_input(uart_t *uart);
 //void handle_uart();
 
 
+#ifndef BOARD2
 
-#define handle_uart() \
-{ \
-	if((DEBUG_UART->SR & USART_FLAG_TC) != 0 && \
-		uart.uart_offset < uart.uart_size) \
+	#define handle_uart() \
 	{ \
-TOGGLE_PIN(RED_LED_GPIO, 1 << RED_LED_PIN); \
-		DEBUG_UART->DR = uart.uart_buffer[uart.uart_offset++]; \
-	} \
- \
-	if((PASS_UART->SR & USART_FLAG_TC) != 0 && \
-		uart2.uart_offset < uart2.uart_size) \
+		if((DEBUG_UART->SR & USART_FLAG_TC) != 0 && \
+			uart.uart_offset < uart.uart_size) \
+		{ \
+			TOGGLE_PIN(RED_LED_GPIO, 1 << RED_LED_PIN); \
+			DEBUG_UART->DR = uart.uart_buffer[uart.uart_offset++]; \
+		} \
+	 \
+		if((PASS_UART->SR & USART_FLAG_TC) != 0 && \
+			uart2.uart_offset < uart2.uart_size) \
+		{ \
+			PASS_UART->DR = uart2.uart_buffer[uart2.uart_offset++]; \
+		} \
+	}
+
+#else // !BOARD2
+
+
+	#define handle_uart() \
 	{ \
-		PASS_UART->DR = uart2.uart_buffer[uart2.uart_offset++]; \
-	} \
-}
+		if((DEBUG_UART->SR & USART_FLAG_TC) != 0 && \
+			uart.uart_offset < uart.uart_size) \
+		{ \
+			DEBUG_UART->DR = uart.uart_buffer[uart.uart_offset++]; \
+		} \
+	}
+
+#endif // BOARD2
 
 
 

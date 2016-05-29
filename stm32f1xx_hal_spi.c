@@ -295,6 +295,14 @@ __weak HAL_StatusTypeDef HAL_SPI_Init(SPI_HandleTypeDef *hspi)
   return HAL_OK;
 }
 
+
+
+
+
+
+
+#if 0
+
 /**
   * @brief  DeInitializes the SPI peripheral 
   * @param  hspi: pointer to a SPI_HandleTypeDef structure that contains
@@ -2393,6 +2401,7 @@ __weak uint8_t SPI_ISCRCErrorValid(SPI_HandleTypeDef *hspi)
   * @}
   */
 
+#endif // 0
 
 #endif /* HAL_SPI_MODULE_ENABLED */
 /**

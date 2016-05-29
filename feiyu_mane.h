@@ -28,6 +28,15 @@
 
 
 
+// disable all to build the bootloader
+// yaw board
+//#define BOARD0
+// roll board
+//#define BOARD1
+// pitch board
+#define BOARD2
+
+
 /* Definition for USARTx Pins */
 #define DEBUG_UART						USART1
 #define DEBUG_TX_PIN					6
@@ -58,6 +67,8 @@
 
 // frequency of the mane timer
 #define HZ 1000
+
+extern volatile int mane_time;
 
 #endif
 

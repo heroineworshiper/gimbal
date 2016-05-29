@@ -8,7 +8,9 @@
 uart_t uart;
 uart_t uart2;
 UART_HandleTypeDef UartHandle;
+
 UART_HandleTypeDef UartHandle2;
+
 
 const char hex_table[] = 
 {
@@ -33,7 +35,9 @@ void init_uart()
     __HAL_UART_ENABLE_IT(&UartHandle, UART_IT_RXNE);
 	HAL_NVIC_EnableIRQ(USART1_IRQn);
 
- 	UartHandle2.Instance        = PASS_UART;
+#ifndef BOARD2
+
+	UartHandle2.Instance        = PASS_UART;
 	UartHandle2.Init.BaudRate   = 115200;
 	UartHandle2.Init.WordLength = UART_WORDLENGTH_8B;
 	UartHandle2.Init.StopBits   = UART_STOPBITS_1;
@@ -47,10 +51,34 @@ void init_uart()
     /* Enable the UART Data Register not empty Interrupt */
     __HAL_UART_ENABLE_IT(&UartHandle2, UART_IT_RXNE);
 	HAL_NVIC_EnableIRQ(USART3_IRQn);
-	
 
+
+#else // !BOARD2
+
+	UartHandle2.Instance        = PASS_UART;
+	HAL_UART_DeInit(&UartHandle2);
+	HAL_NVIC_DisableIRQ(USART3_IRQn);
+
+
+#endif // BOARD2
+}
+
+#ifdef BOARD2
+void HAL_UART_MspDeInit(UART_HandleTypeDef *huart)
+{
+  /*##-1- Reset peripherals ##################################################*/
+  __HAL_RCC_USART3_FORCE_RESET();
+  __HAL_RCC_USART3_RELEASE_RESET();
+
+  /*##-2- Disable peripherals and GPIO Clocks #################################*/
+  /* Configure UART Tx as alternate function  */
+  HAL_GPIO_DeInit(PASS_UART_TX_GPIO, PASS_UART_TX_PIN);
+  /* Configure UART Rx as alternate function  */
+  HAL_GPIO_DeInit(PASS_UART_RX_GPIO, PASS_UART_RX_PIN);
 
 }
+#endif // !BOARD2
+
 
 
 void HAL_UART_MspInit(UART_HandleTypeDef *huart)
@@ -85,6 +113,12 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
 
   HAL_GPIO_Init(DEBUG_RX_GPIO_PORT, &GPIO_InitStruct);
 
+
+
+
+#ifndef BOARD2
+
+
 // Don't remap UART3.  Trap for young players.
 //  AFIO->MAPR |= AFIO_MAPR_USART3_REMAP;
   __HAL_RCC_USART3_CLK_ENABLE();
@@ -96,7 +130,8 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
   GPIO_InitStruct.Pin = 1 << PASS_UART_RX_PIN;
   GPIO_InitStruct.Mode      = GPIO_MODE_AF_INPUT;
   HAL_GPIO_Init(PASS_UART_RX_GPIO, &GPIO_InitStruct);
-    
+#endif // !BOARD2
+
 }
 
 
@@ -116,6 +151,7 @@ void USART1_IRQHandler()
 	}
 }
 
+#ifndef BOARD2
 
 void USART3_IRQHandler()
 {
@@ -131,6 +167,9 @@ void USART3_IRQHandler()
 		uart2.input_size++;
 	}
 }
+#endif // !BOARD2
+
+
 
 unsigned char uart_get_input(uart_t *uart)
 {
@@ -261,6 +300,21 @@ void print_hex2(uart_t *uart, uint32_t number)
 	buffer[1] = hex_table[(number & 0xf)];
 	buffer[2] = ' ';
 	send_uart(uart, buffer, 3);
+}
+
+void print_hex8(uart_t *uart, uint32_t number)
+{
+	char buffer[16];
+	buffer[0] = hex_table[(number >> 28) & 0xf];
+	buffer[1] = hex_table[(number >> 24) & 0xf];
+	buffer[2] = hex_table[(number >> 20) & 0xf];
+	buffer[3] = hex_table[(number >> 16) & 0xf];
+	buffer[4] = hex_table[(number >> 12) & 0xf];
+	buffer[5] = hex_table[(number >> 8) & 0xf];
+	buffer[6] = hex_table[(number >> 4) & 0xf];
+	buffer[7] = hex_table[(number & 0xf)];
+	buffer[8] = ' ';
+	send_uart(uart, buffer, 9);
 }
 
 void print_hex(uart_t *uart, uint32_t number)

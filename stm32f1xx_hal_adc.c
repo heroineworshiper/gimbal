@@ -564,6 +564,54 @@ HAL_StatusTypeDef HAL_ADC_Init(ADC_HandleTypeDef* hadc)
   return tmp_hal_status;
 }
 
+
+/**
+  * @brief  Stop ADC conversion and disable the selected ADC
+  * @note   Prerequisite condition to use this function: ADC conversions must be
+  *         stopped to disable the ADC.
+  * @param  hadc: ADC handle
+  * @retval HAL status.
+  */
+HAL_StatusTypeDef ADC_ConversionStop_Disable(ADC_HandleTypeDef* hadc)
+{
+  uint32_t tickstart = 0;
+  
+  /* Verification if ADC is not already disabled */
+  if (ADC_IS_ENABLE(hadc) != RESET)
+  {
+    /* Disable the ADC peripheral */
+    __HAL_ADC_DISABLE(hadc);
+     
+    /* Get tick count */
+    tickstart = HAL_GetTick();
+    
+    /* Wait for ADC effectively disabled */
+    while(ADC_IS_ENABLE(hadc) != RESET)
+    {
+      if((HAL_GetTick() - tickstart) > ADC_DISABLE_TIMEOUT)
+      {
+        /* Update ADC state machine to error */
+        SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
+        
+        /* Set ADC error code to ADC IP internal error */
+        SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
+        
+        return HAL_ERROR;
+      }
+    }
+  }
+  
+  /* Return HAL status */
+  return HAL_OK;
+}
+
+
+
+
+
+
+#if 0
+
 /**
   * @brief  Deinitialize the ADC peripheral registers to their default reset
   *         values, with deinitialization of the ADC MSP.
@@ -1488,6 +1536,9 @@ uint32_t HAL_ADC_GetValue(ADC_HandleTypeDef* hadc)
   return hadc->Instance->DR;
 }
 
+
+
+
 /**
   * @brief  Handles ADC interrupt request  
   * @param  hadc: ADC handle
@@ -1680,6 +1731,10 @@ __weak void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
   * @{
   */
 
+
+#endif // 0
+
+
 /**
   * @brief  Configures the the selected channel to be linked to the regular
   *         group.
@@ -1794,6 +1849,14 @@ HAL_StatusTypeDef HAL_ADC_ConfigChannel(ADC_HandleTypeDef* hadc, ADC_ChannelConf
   /* Return function status */
   return tmp_hal_status;
 }
+
+
+#if 0
+
+
+
+
+
 
 /**
   * @brief  Configures the analog watchdog.
@@ -1979,45 +2042,6 @@ HAL_StatusTypeDef ADC_Enable(ADC_HandleTypeDef* hadc)
   return HAL_OK;
 }
 
-/**
-  * @brief  Stop ADC conversion and disable the selected ADC
-  * @note   Prerequisite condition to use this function: ADC conversions must be
-  *         stopped to disable the ADC.
-  * @param  hadc: ADC handle
-  * @retval HAL status.
-  */
-HAL_StatusTypeDef ADC_ConversionStop_Disable(ADC_HandleTypeDef* hadc)
-{
-  uint32_t tickstart = 0;
-  
-  /* Verification if ADC is not already disabled */
-  if (ADC_IS_ENABLE(hadc) != RESET)
-  {
-    /* Disable the ADC peripheral */
-    __HAL_ADC_DISABLE(hadc);
-     
-    /* Get tick count */
-    tickstart = HAL_GetTick();
-    
-    /* Wait for ADC effectively disabled */
-    while(ADC_IS_ENABLE(hadc) != RESET)
-    {
-      if((HAL_GetTick() - tickstart) > ADC_DISABLE_TIMEOUT)
-      {
-        /* Update ADC state machine to error */
-        SET_BIT(hadc->State, HAL_ADC_STATE_ERROR_INTERNAL);
-        
-        /* Set ADC error code to ADC IP internal error */
-        SET_BIT(hadc->ErrorCode, HAL_ADC_ERROR_INTERNAL);
-        
-        return HAL_ERROR;
-      }
-    }
-  }
-  
-  /* Return HAL status */
-  return HAL_OK;
-}
 
 /**
   * @brief  DMA transfer complete callback. 
@@ -2095,6 +2119,8 @@ void ADC_DMAError(DMA_HandleTypeDef *hdma)
   /* Error callback */
   HAL_ADC_ErrorCallback(hadc); 
 }
+
+#endif // 0
 
 /**
   * @}

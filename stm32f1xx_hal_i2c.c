@@ -203,6 +203,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f1xx_hal.h"
+#include "feiyu_uart.h"
 
 /** @addtogroup STM32F1xx_HAL_Driver
   * @{
@@ -309,6 +310,60 @@ static uint32_t I2C_Configure_Speed(I2C_HandleTypeDef *hi2c, uint32_t I2CClkSrcF
   */
 
 /**
+  * @brief  I2C Configuration Speed function
+  * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
+  *                the configuration information for the specified I2C.
+  * @param  I2CClkSrcFreq: PCLK frequency from RCC.
+  * @retval CCR Speed: Speed to set in I2C CCR Register
+  */
+static uint32_t I2C_Configure_Speed(I2C_HandleTypeDef *hi2c, uint32_t I2CClkSrcFreq)
+{
+  uint32_t tmp1 = 0;
+  
+  /* Clock Standard Mode */
+  if(hi2c->Init.ClockSpeed <= I2C_STANDARD_MODE_MAX_CLK)
+  {
+    /* Calculate Value to be set in CCR register */
+    tmp1 = (I2CClkSrcFreq/(hi2c->Init.ClockSpeed << 1));
+    
+    /* The minimum allowed value set in CCR register is 0x04 for Standard Mode */
+    if( (tmp1 & I2C_CCR_CCR) < 4 )
+    {
+      return 4;
+    }
+    else
+    {
+      return tmp1;
+    }
+  }
+  else
+  {
+    /* Clock Fast Mode */
+    tmp1 = I2C_CCR_FS;
+    
+    /* Duty Cylce tLow/tHigh = 2 */
+    if(hi2c->Init.DutyCycle == I2C_DUTYCYCLE_2)
+    {
+      tmp1 |= (I2CClkSrcFreq/(hi2c->Init.ClockSpeed * 3)) | I2C_DUTYCYCLE_2; 
+    }
+    else /* Duty Cylce tLow/tHigh = 16/9 */
+    {
+      tmp1 |= (I2CClkSrcFreq/(hi2c->Init.ClockSpeed * 25)) | I2C_DUTYCYCLE_16_9;
+    }
+
+    /* The minimum allowed value set in CCR register is 0x01 for Fast Mode */
+    if( (tmp1 & I2C_CCR_CCR) < 1 )
+    {
+      return 1;
+    }
+    else
+    {
+      return tmp1;
+    }
+  }
+}
+
+/**
   * @brief  Initializes the I2C according to the specified parameters
   *         in the I2C_InitTypeDef and initialize the associated handle.
   * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
@@ -390,6 +445,22 @@ HAL_StatusTypeDef HAL_I2C_Init(I2C_HandleTypeDef *hi2c)
 
   return HAL_OK;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if 0
+
 
 /**
   * @brief  DeInitialize the I2C peripheral. 
@@ -1385,7 +1456,6 @@ HAL_StatusTypeDef HAL_I2C_Slave_Receive_IT(I2C_HandleTypeDef *hi2c, uint8_t *pDa
   }
 }
 
- 
 /**
   * @brief  Transmit in master mode an amount of data in non-blocking mode with DMA
   * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
@@ -2075,6 +2145,22 @@ HAL_StatusTypeDef HAL_I2C_Mem_Read(I2C_HandleTypeDef *hi2c, uint16_t DevAddress,
   }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /**
   * @brief  Write an amount of data in non-blocking mode with Interrupt to a specific memory address
   * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
@@ -2176,11 +2262,16 @@ HAL_StatusTypeDef HAL_I2C_Mem_Read_IT(I2C_HandleTypeDef *hi2c, uint16_t DevAddre
       return  HAL_ERROR;
     }
 
+TRACE
+flush_uart(&uart);
     /* Wait until BUSY flag is reset */
     if(I2C_WaitOnFlagUntilTimeout(hi2c, I2C_FLAG_BUSY, SET, I2C_TIMEOUT_BUSY_FLAG) != HAL_OK)
     {
       return HAL_BUSY;
     }
+
+TRACE
+flush_uart(&uart);
 
     /* Process Locked */
     __HAL_LOCK(hi2c);
@@ -2201,17 +2292,23 @@ HAL_StatusTypeDef HAL_I2C_Mem_Read_IT(I2C_HandleTypeDef *hi2c, uint16_t DevAddre
     {
       if(hi2c->ErrorCode == HAL_I2C_ERROR_AF)
       {
+TRACE
+flush_uart(&uart);
         /* Process Unlocked */
         __HAL_UNLOCK(hi2c);
         return HAL_ERROR;
       }
       else
       {
+TRACE
+flush_uart(&uart);
         /* Process Unlocked */
         __HAL_UNLOCK(hi2c);
         return HAL_TIMEOUT;
       }
     }
+TRACE
+flush_uart(&uart);
 
     if(hi2c->XferCount == 1)
     {
@@ -2261,6 +2358,18 @@ HAL_StatusTypeDef HAL_I2C_Mem_Read_IT(I2C_HandleTypeDef *hi2c, uint16_t DevAddre
     return HAL_BUSY;
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /**
@@ -2442,6 +2551,12 @@ HAL_StatusTypeDef HAL_I2C_Mem_Read_DMA(I2C_HandleTypeDef *hi2c, uint16_t DevAddr
     return HAL_BUSY;
   }
 }
+
+
+
+
+
+
 
 
 /**
@@ -3469,11 +3584,18 @@ static HAL_StatusTypeDef I2C_RequestMemoryRead(I2C_HandleTypeDef *hi2c, uint16_t
   /* Generate Start */
   SET_BIT(hi2c->Instance->CR1, I2C_CR1_START);
 
+TRACE
+flush_uart(&uart);
+
   /* Wait until SB flag is set */
   if(I2C_WaitOnFlagUntilTimeout(hi2c, I2C_FLAG_SB, RESET, Timeout) != HAL_OK)
   {
+TRACE
+flush_uart(&uart);
     return HAL_TIMEOUT;
   }
+TRACE
+flush_uart(&uart);
 
   /* Send slave address */
   hi2c->Instance->DR = I2C_7BIT_ADD_WRITE(DevAddress);
@@ -3490,9 +3612,13 @@ static HAL_StatusTypeDef I2C_RequestMemoryRead(I2C_HandleTypeDef *hi2c, uint16_t
       return HAL_TIMEOUT;
     }
   }
+TRACE
+flush_uart(&uart);
 
   /* Clear ADDR flag */
   __HAL_I2C_CLEAR_ADDRFLAG(hi2c);
+TRACE
+flush_uart(&uart);
 
   /* Wait until TXE flag is set */
   if(I2C_WaitOnTXEFlagUntilTimeout(hi2c, Timeout) != HAL_OK)
@@ -3508,6 +3634,8 @@ static HAL_StatusTypeDef I2C_RequestMemoryRead(I2C_HandleTypeDef *hi2c, uint16_t
       return HAL_TIMEOUT;
     }
   }
+TRACE
+flush_uart(&uart);
 
   /* If Memory address size is 8Bit */
   if(MemAddSize == I2C_MEMADD_SIZE_8BIT)
@@ -3818,59 +3946,6 @@ static void I2C_DMAMemReceiveCplt(DMA_HandleTypeDef *hdma)
   }
 }
 
-/**
-  * @brief  I2C Configuration Speed function
-  * @param  hi2c Pointer to a I2C_HandleTypeDef structure that contains
-  *                the configuration information for the specified I2C.
-  * @param  I2CClkSrcFreq: PCLK frequency from RCC.
-  * @retval CCR Speed: Speed to set in I2C CCR Register
-  */
-static uint32_t I2C_Configure_Speed(I2C_HandleTypeDef *hi2c, uint32_t I2CClkSrcFreq)
-{
-  uint32_t tmp1 = 0;
-  
-  /* Clock Standard Mode */
-  if(hi2c->Init.ClockSpeed <= I2C_STANDARD_MODE_MAX_CLK)
-  {
-    /* Calculate Value to be set in CCR register */
-    tmp1 = (I2CClkSrcFreq/(hi2c->Init.ClockSpeed << 1));
-    
-    /* The minimum allowed value set in CCR register is 0x04 for Standard Mode */
-    if( (tmp1 & I2C_CCR_CCR) < 4 )
-    {
-      return 4;
-    }
-    else
-    {
-      return tmp1;
-    }
-  }
-  else
-  {
-    /* Clock Fast Mode */
-    tmp1 = I2C_CCR_FS;
-    
-    /* Duty Cylce tLow/tHigh = 2 */
-    if(hi2c->Init.DutyCycle == I2C_DUTYCYCLE_2)
-    {
-      tmp1 |= (I2CClkSrcFreq/(hi2c->Init.ClockSpeed * 3)) | I2C_DUTYCYCLE_2; 
-    }
-    else /* Duty Cylce tLow/tHigh = 16/9 */
-    {
-      tmp1 |= (I2CClkSrcFreq/(hi2c->Init.ClockSpeed * 25)) | I2C_DUTYCYCLE_16_9;
-    }
-
-    /* The minimum allowed value set in CCR register is 0x01 for Fast Mode */
-    if( (tmp1 & I2C_CCR_CCR) < 1 )
-    {
-      return 1;
-    }
-    else
-    {
-      return tmp1;
-    }
-  }
-}
 
 /**
   * @brief  DMA I2C communication error callback.
@@ -3949,6 +4024,8 @@ static HAL_StatusTypeDef I2C_WaitOnFlagUntilTimeout(I2C_HandleTypeDef *hi2c, uin
       }
     }
   }
+  
+
   return HAL_OK;
 }
 
@@ -4182,6 +4259,8 @@ static HAL_StatusTypeDef I2C_IsAcknowledgeFailed(I2C_HandleTypeDef *hi2c)
 /**
   * @}
   */
+#endif // 0
+
 
 #endif /* HAL_I2C_MODULE_ENABLED */
 

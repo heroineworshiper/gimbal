@@ -81,7 +81,16 @@ FEIYU_OBJS := \
 	feiyu_uart.o
 
 FEIYU_MANE_OBJS := \
-	feiyu_mane.o 
+	feiyu_adc.o \
+	feiyu_imu.o \
+	feiyu_hall.o \
+	feiyu_mane.o \
+	feiyu_motor.o \
+	stm32f1xx_hal_adc.o \
+	stm32f1xx_hal_i2c.o \
+	stm32f1xx_hal_rcc_ex.o \
+	stm32f1xx_hal_spi.o \
+	stm32f1xx_hal_tim.o
 
 FEIYU_COMMON_OBJS := \
 	startup_stm32f103xb.o \
@@ -105,8 +114,8 @@ feiyu_program: feiyu_program.c
 
 feiyu_mane.bin: feiyu_bootloader.bin $(FEIYU_MANE_OBJS)
 	$(GCC_FEIYU) -o feiyu_mane.elf \
-		$(FEIYU_MANE_OBJS) \
 		$(FEIYU_COMMON_OBJS) \
+		$(FEIYU_MANE_OBJS) \
 		$(FEIYU_LFLAGS) \
 		-Tfeiyu_mane.ld
 	$(OBJCOPY_FEIYU) -O binary feiyu_mane.elf feiyu_mane.bin
@@ -174,15 +183,23 @@ clean:
 startup_stm32f103xb.o: startup_stm32f103xb.s
 system_stm32f1xx.o: system_stm32f1xx.c
 feiyu_bootloader.o: feiyu_bootloader.c
+feiyu_adc.o: feiyu_adc.c
+feiyu_imu.o: feiyu_imu.c
+feiyu_hall.o: feiyu_hall.c
 feiyu_mane.o: feiyu_mane.c
+feiyu_motor.o: feiyu_motor.c
 arm_linux.o: arm_linux.c
 feiyu_uart.o: feiyu_uart.c
+stm32f1xx_hal_adc.o: stm32f1xx_hal_adc.c
+stm32f1xx_hal_i2c.o: stm32f1xx_hal_i2c.c
 stm32f1xx_hal_uart.o: stm32f1xx_hal_uart.c
 stm32f1xx_hal_gpio.o: stm32f1xx_hal_gpio.c
 stm32f1xx_hal_rcc.o: stm32f1xx_hal_rcc.c
 stm32f1xx_hal.o: stm32f1xx_hal.c
 stm32f1xx_hal_dma.o: stm32f1xx_hal_dma.c
 stm32f1xx_hal_cortex.o: stm32f1xx_hal_cortex.c
+stm32f1xx_hal_rcc_ex.o: stm32f1xx_hal_rcc_ex.c
+stm32f1xx_hal_spi.o: stm32f1xx_hal_spi.c
 stm32f1xx_hal_tim.o: stm32f1xx_hal_tim.c
 stm32f1xx_hal_flash.o: stm32f1xx_hal_flash.c
 stm32f1xx_hal_flash_ex.o: stm32f1xx_hal_flash_ex.c

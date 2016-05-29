@@ -366,8 +366,10 @@ typedef struct
   *            @arg @ref I2C_FLAG_MSL Master/Slave flag
   * @retval The new state of __FLAG__ (TRUE or FALSE).
   */
-#define __HAL_I2C_GET_FLAG(__HANDLE__, __FLAG__) ((((uint8_t)((__FLAG__) >> 16)) == 0x01)?((((__HANDLE__)->Instance->SR1) & ((__FLAG__) & I2C_FLAG_MASK)) == ((__FLAG__) & I2C_FLAG_MASK)): \
-                                                 ((((__HANDLE__)->Instance->SR2) & ((__FLAG__) & I2C_FLAG_MASK)) == ((__FLAG__) & I2C_FLAG_MASK)))
+#define __HAL_I2C_GET_FLAG(__HANDLE__, __FLAG__) \
+((((uint8_t)((__FLAG__) >> 16)) == 0x01) ? \
+	((((__HANDLE__)->Instance->SR1) & ((__FLAG__) & I2C_FLAG_MASK)) == ((__FLAG__) & I2C_FLAG_MASK)) : \
+    ((((__HANDLE__)->Instance->SR2) & ((__FLAG__) & I2C_FLAG_MASK)) == ((__FLAG__) & I2C_FLAG_MASK)))
 
 /** @brief  Clear the I2C pending flags which are cleared by writing 0 in a specific bit.
   * @param  __HANDLE__ specifies the I2C Handle.

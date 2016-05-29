@@ -378,6 +378,16 @@ HAL_StatusTypeDef HAL_TIM_Base_Stop_IT(TIM_HandleTypeDef *htim)
   return HAL_OK;
 }
 
+
+
+
+
+
+
+
+
+
+#if 0
 /**
   * @brief  Starts the TIM Base generation in DMA mode.
   * @param  htim : TIM handle
@@ -446,6 +456,21 @@ HAL_StatusTypeDef HAL_TIM_Base_Stop_DMA(TIM_HandleTypeDef *htim)
   /* Return function status */
   return HAL_OK;
 }
+
+#endif // 0
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
   * @}
@@ -763,6 +788,16 @@ HAL_StatusTypeDef HAL_TIM_OC_Stop_IT(TIM_HandleTypeDef *htim, uint32_t Channel)
   return HAL_OK;
 }
 
+
+
+
+
+
+
+
+
+
+#if 0
 /**
   * @brief  Starts the TIM Output Compare signal generation in DMA mode.
   * @param  htim : TIM Output Compare handle
@@ -950,6 +985,15 @@ HAL_StatusTypeDef HAL_TIM_OC_Stop_DMA(TIM_HandleTypeDef *htim, uint32_t Channel)
   /* Return function status */
   return HAL_OK;
 }
+#endif // 0
+
+
+
+
+
+
+
+
 
 /**
   * @}
@@ -1270,6 +1314,17 @@ HAL_StatusTypeDef HAL_TIM_PWM_Stop_IT (TIM_HandleTypeDef *htim, uint32_t Channel
   return HAL_OK;
 }
 
+
+
+
+
+
+
+
+
+
+
+#if 0
 /**
   * @brief  Starts the TIM PWM signal generation in DMA mode.
   * @param  htim : TIM handle
@@ -1457,6 +1512,19 @@ HAL_StatusTypeDef HAL_TIM_PWM_Stop_DMA(TIM_HandleTypeDef *htim, uint32_t Channel
   /* Return function status */
   return HAL_OK;
 }
+#endif // 0
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
   * @}
@@ -1749,6 +1817,17 @@ HAL_StatusTypeDef HAL_TIM_IC_Stop_IT(TIM_HandleTypeDef *htim, uint32_t Channel)
   return HAL_OK;
 }
 
+
+
+
+
+
+
+
+
+
+#if 0
+
 /**
   * @brief  Starts the TIM Input Capture measurement in DMA mode.
   * @param  htim : TIM Input Capture handle
@@ -1927,6 +2006,18 @@ HAL_StatusTypeDef HAL_TIM_IC_Stop_DMA(TIM_HandleTypeDef *htim, uint32_t Channel)
   /* Return function status */
   return HAL_OK;
 }
+
+
+#endif // 0
+
+
+
+
+
+
+
+
+
 /**
   * @}
   */
@@ -2557,6 +2648,16 @@ HAL_StatusTypeDef HAL_TIM_Encoder_Stop_IT(TIM_HandleTypeDef *htim, uint32_t Chan
   return HAL_OK;
 }
 
+
+
+
+
+
+
+
+
+
+#if 0
 /**
   * @brief  Starts the TIM Encoder Interface in DMA mode.
   * @param  htim : TIM Encoder Interface handle
@@ -2727,6 +2828,24 @@ HAL_StatusTypeDef HAL_TIM_Encoder_Stop_DMA(TIM_HandleTypeDef *htim, uint32_t Cha
   /* Return function status */
   return HAL_OK;
 }
+#endif // 0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
   * @}
@@ -2847,6 +2966,9 @@ void HAL_TIM_IRQHandler(TIM_HandleTypeDef *htim)
       HAL_TIM_PeriodElapsedCallback(htim);
     }
   }
+  
+  
+#if 0
   /* TIM Break input event */
   if(__HAL_TIM_GET_FLAG(htim, TIM_FLAG_BREAK) != RESET)
   {
@@ -2874,6 +2996,10 @@ void HAL_TIM_IRQHandler(TIM_HandleTypeDef *htim)
       HAL_TIMEx_CommutationCallback(htim);
     }
   }
+#endif // 0
+
+
+
 }
 
 /**
@@ -3274,6 +3400,18 @@ HAL_StatusTypeDef HAL_TIM_OnePulse_ConfigChannel(TIM_HandleTypeDef *htim,  TIM_O
     return HAL_ERROR;
   }
 }
+
+
+
+
+
+
+
+
+
+#if 0
+
+
 
 /**
   * @brief  Configure the DMA Burst to transfer Data from the memory to the TIM peripheral 
@@ -3721,6 +3859,16 @@ HAL_StatusTypeDef HAL_TIM_DMABurst_ReadStop(TIM_HandleTypeDef *htim, uint32_t Bu
   /* Return function status */
   return HAL_OK;
 }
+
+#endif // 0
+
+
+
+
+
+
+
+
 
 /**
   * @brief  Generate a software event

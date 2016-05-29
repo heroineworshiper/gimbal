@@ -573,7 +573,8 @@ do{                                         \
   *         (USART,UART availability and x,y values depending on device).
   * @retval None
   */
-#define __HAL_UART_DISABLE(__HANDLE__)              ((__HANDLE__)->Instance->CR1 &=  ~USART_CR1_UE)
+#define __HAL_UART_DISABLE(__HANDLE__)              \
+	((__HANDLE__)->Instance->CR1 &=  ~USART_CR1_UE)
 
 /**
   * @}

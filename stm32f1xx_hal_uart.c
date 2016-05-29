@@ -300,6 +300,44 @@ HAL_StatusTypeDef HAL_UART_Init(UART_HandleTypeDef *huart)
 }
 
 
+/**
+  * @brief  DeInitializes the UART peripheral. 
+  * @param  huart: Pointer to a UART_HandleTypeDef structure that contains
+  *                the configuration information for the specified UART module.
+  * @retval HAL status
+  */
+HAL_StatusTypeDef HAL_UART_DeInit(UART_HandleTypeDef *huart)
+{
+  /* Check the UART handle allocation */
+  if(huart == NULL)
+  {
+    return HAL_ERROR;
+  }
+  
+  /* Check the parameters */
+  assert_param(IS_UART_INSTANCE(huart->Instance));
+
+  huart->State = HAL_UART_STATE_BUSY;
+  
+  /* Disable the Peripheral */
+  __HAL_UART_DISABLE(huart);
+  
+  huart->Instance->CR1 = 0x0;
+  huart->Instance->CR2 = 0x0;
+  huart->Instance->CR3 = 0x0;
+  
+  /* DeInit the low level hardware */
+  HAL_UART_MspDeInit(huart);
+
+  huart->ErrorCode = HAL_UART_ERROR_NONE;
+  huart->State = HAL_UART_STATE_RESET;
+
+  /* Process Unlock */
+  __HAL_UNLOCK(huart);
+
+  return HAL_OK;
+}
+
 
 
 
@@ -496,44 +534,6 @@ HAL_StatusTypeDef HAL_MultiProcessor_Init(UART_HandleTypeDef *huart, uint8_t Add
   huart->ErrorCode = HAL_UART_ERROR_NONE;
   huart->State= HAL_UART_STATE_READY;
   
-  return HAL_OK;
-}
-
-/**
-  * @brief  DeInitializes the UART peripheral. 
-  * @param  huart: Pointer to a UART_HandleTypeDef structure that contains
-  *                the configuration information for the specified UART module.
-  * @retval HAL status
-  */
-HAL_StatusTypeDef HAL_UART_DeInit(UART_HandleTypeDef *huart)
-{
-  /* Check the UART handle allocation */
-  if(huart == NULL)
-  {
-    return HAL_ERROR;
-  }
-  
-  /* Check the parameters */
-  assert_param(IS_UART_INSTANCE(huart->Instance));
-
-  huart->State = HAL_UART_STATE_BUSY;
-  
-  /* Disable the Peripheral */
-  __HAL_UART_DISABLE(huart);
-  
-  huart->Instance->CR1 = 0x0;
-  huart->Instance->CR2 = 0x0;
-  huart->Instance->CR3 = 0x0;
-  
-  /* DeInit the low level hardware */
-  HAL_UART_MspDeInit(huart);
-
-  huart->ErrorCode = HAL_UART_ERROR_NONE;
-  huart->State = HAL_UART_STATE_RESET;
-
-  /* Process Unlock */
-  __HAL_UNLOCK(huart);
-
   return HAL_OK;
 }
 

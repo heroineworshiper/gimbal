@@ -197,32 +197,15 @@ int main(int argc, char *argv[])
 	}
 
 
-	if(write_program)
+
+
+	if(passthrough > 0 || write_program)
 	{
-		FILE *fd = fopen(filename, "r");
-		if(!fd)
-		{
-			printf("main %d: couldn't open %s\n", __LINE__, filename);
-			return 1;
-		}
-
-		fseek(fd, 0, SEEK_END);
-		size = ftell(fd);
-		fseek(fd, 0, SEEK_SET);
-
-		data = malloc(size);
-		fread(data, size, 1, fd);
-		fclose(fd);
-
-		printf("main %d: writing %s address 0x%x size %d passthrough=%d\n", 
-			__LINE__,
-			filename,
-			start_address,
-			size,
-			passthrough);
+		printf("Passing through %d times\n", passthrough);
 
 // do all passthrough stages
-		for(i = 0; i < passthrough + 1; i++)
+// 1 extra to enter bootloader mode
+		for(i = 0; i < passthrough + write_program; i++)
 		{
 // wait for the bootloader prompt
 			char code[4] = { 0, 0, 0, 0 };
@@ -242,7 +225,7 @@ int main(int argc, char *argv[])
 					code[2] == 'O' &&
 					code[3] == 'T')
 				{
-// Send code to activate bootloader
+// Send code to activate bootloader if passing through or programming this board
 					write_char(serial_fd, 'b');
 					break;
 				}
@@ -257,7 +240,32 @@ int main(int argc, char *argv[])
 				write_char(serial_fd, 'p');
 			}
 		}
-		
+	}
+
+	if(write_program)
+	{
+		FILE *fd = fopen(filename, "r");
+		if(!fd)
+		{
+			printf("main %d: couldn't open %s\n", __LINE__, filename);
+			return 1;
+		}
+
+		fseek(fd, 0, SEEK_END);
+		size = ftell(fd);
+		fseek(fd, 0, SEEK_SET);
+
+		data = malloc(size);
+		fread(data, size, 1, fd);
+		fclose(fd);
+
+		printf("main %d: writing %s address 0x%x size %d\n", 
+			__LINE__,
+			filename,
+			start_address,
+			size);
+
+
 		for(i = 0; i < size; i += PAGE_SIZE)
 		{
 // send command to write flash

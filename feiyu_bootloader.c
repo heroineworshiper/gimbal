@@ -28,7 +28,7 @@
 
 //#define READ_ONLY
 
-int mane_time = 0;
+volatile int mane_time = 0;
 
 void SystemClock_Config(void)
 {
@@ -85,43 +85,6 @@ void init_leds()
 
 }
 
-
-#if 0
-// the mane timer
-TIM_HandleTypeDef    TimHandle;
-void init_timer()
-{
-	__HAL_RCC_TIM3_CLK_ENABLE();
-
-
-// auto reload value
-	TIM3->ARR = 10000 - 1;
-// prescaler
-	TIM3->PSC = 720000 - 1;
-// mode bits
-	uint32_t cr1_value = TIM3->CR1;
-	cr1_value &= ~(TIM_CR1_DIR | TIM_CR1_CMS | TIM_CR1_CKD);
-	cr1_value |= TIM_COUNTERMODE_UP | TIM_CLOCKDIVISION_DIV1;
-	TIM3->CR1 = cr1_value;
-
-// enable interrupt
-	TIM3->DIER |= TIM_IT_UPDATE;
-// start timer
-	TIM3->CR1 |= TIM_CR1_CEN;
-	
-	HAL_NVIC_SetPriority(TIM3_IRQn, 3, 0);
-	HAL_NVIC_EnableIRQ(TIM3_IRQn);
-}
-
-
-
-
-
-void TIM3_IRQHandler()
-{
-}
-#endif // 0
-
 // 1ms clock
 void SysTick_Handler()
 {
@@ -151,6 +114,7 @@ void do_bootloader()
 
 				switch(c)
 				{
+#ifndef BOARD2
 					case 'p':
 	// passthrough
 						print_text(&uart, "\nPassthrough mode\n");
@@ -173,6 +137,7 @@ void do_bootloader()
 							}
 						}
 						break;
+#endif // !BOARD2
 
 // write to flash
 					case 'w':
@@ -271,37 +236,41 @@ void main()
   	__HAL_RCC_AFIO_CLK_ENABLE();
 	__HAL_AFIO_REMAP_SWJ_NOJTAG();
 
-// reset handler
-	void (*user_main)(void) = (void (*)(void))(PROGRAM_START + 0x0168);
-// calling main directly works.  Calling _mainCRTStartup doesn't
-//	void (*user_main)(void) = (void (*)(void))(PROGRAM_START + 0x1ce5);
 
 	init_linux();
 	HAL_Init();
 	SystemClock_Config();
 	init_uart();
 
-
 	init_leds();
 	
 
 // wait a while for a code to go into bootloader mode while printing the 
 // start code
-	while(mane_time < 3 * HZ)
+	int done = 0;
+	int end_time2 = mane_time + HZ;
+	while(mane_time < end_time2 && !done)
 	{
 		handle_uart();
 		if(UART_EMPTY(&uart))
 		{
 			print_text(&uart, "**** BOOT\n");
 		}
-		if(uart_got_input(&uart))
+		
+		int end_time = mane_time + 100;
+		while(mane_time < end_time && !done)
 		{
-			char c = uart_get_input(&uart);
-			if(c == 'b')
+			handle_uart();
+			if(uart_got_input(&uart))
 			{
+				char c = uart_get_input(&uart);
+				if(c == 'b')
+				{
 // go into bootloader
-				do_bootloader();
-				break;
+					do_bootloader();
+					done = 1;
+					break;
+				}
 			}
 		}
 	}
@@ -310,13 +279,20 @@ void main()
 	print_text(&uart, "\nStarting mane program\n");
 	flush_uart(&uart);
 
-
+// disable mane interrupts
+// be sure to redefine interrupt handlers for the mane clock & UART before
+// re-enabling this
 	__disable_irq();
+	
+	
+	
 	CLEAR_PIN(BLUE_LED_GPIO, 1 << BLUE_LED_PIN);
 	CLEAR_PIN(RED_LED_GPIO, 1 << RED_LED_PIN);
 
+// get the reset handler from the interrupt vector
+	uint32_t *interrupt_ptr = (uint32_t*)(PROGRAM_START + 4);
+	void (*user_main)(void) = (void (*)(void))(*interrupt_ptr);
 
-	
 	user_main();
 }
 
