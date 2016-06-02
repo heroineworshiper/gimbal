@@ -90,7 +90,8 @@ FEIYU_MANE_OBJS := \
 	stm32f1xx_hal_i2c.o \
 	stm32f1xx_hal_rcc_ex.o \
 	stm32f1xx_hal_spi.o \
-	stm32f1xx_hal_tim.o
+	stm32f1xx_hal_tim.o \
+	stm32f1xx_hal_tim_ex.o
 
 FEIYU_COMMON_OBJS := \
 	startup_stm32f103xb.o \
@@ -201,6 +202,7 @@ stm32f1xx_hal_cortex.o: stm32f1xx_hal_cortex.c
 stm32f1xx_hal_rcc_ex.o: stm32f1xx_hal_rcc_ex.c
 stm32f1xx_hal_spi.o: stm32f1xx_hal_spi.c
 stm32f1xx_hal_tim.o: stm32f1xx_hal_tim.c
+stm32f1xx_hal_tim_ex.o: stm32f1xx_hal_tim_ex.c
 stm32f1xx_hal_flash.o: stm32f1xx_hal_flash.c
 stm32f1xx_hal_flash_ex.o: stm32f1xx_hal_flash_ex.c
 

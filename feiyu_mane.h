@@ -72,7 +72,22 @@
 // frequency of the IMU, determined by sample rate divider
 #define IMU_HZ 400
 
+
+
+#define SYNC_CODE 0xe5
+
 extern volatile int mane_time;
+
+typedef struct
+{
+	int hall0;
+	int hall1;
+	int hall2;
+} feiyu_t;
+
+extern feiyu_t fei;
+
+
 
 #endif
 

@@ -5,8 +5,8 @@
 #include <math.h>
 #include "stdint.h"
 
-#define N_SIN 1024
-#define maxPWM 65535
+#define N_SIN 256
+#define maxPWM 3600
 int table[N_SIN];
 
 int main()

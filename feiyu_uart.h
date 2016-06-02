@@ -48,7 +48,7 @@ void print_hex2(uart_t *uart, uint32_t number);
 void print_hex(uart_t *uart, uint32_t number);
 void print_number(uart_t *uart, int number);
 void print_number_nospace(uart_t *uart, int number);
-void print_buffer(const unsigned char *buf, int len);
+void print_buffer(uart_t *uart, unsigned char *buffer, int size);
 void print_buffer16(const uint16_t *buf, int len);
 void flush_uart();
 void print_lf();

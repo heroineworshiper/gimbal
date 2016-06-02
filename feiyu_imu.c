@@ -2,6 +2,7 @@
 
 #include "feiyu_mane.h"
 #include "feiyu_imu.h"
+#include "feiyu_hall.h"
 #include "arm_linux.h"
 #include "feiyu_uart.h"
 #include "stm32f1xx_hal_i2c.h"
@@ -306,6 +307,22 @@ void send_result()
 	int i;
 	if(UART_EMPTY(&uart))
 	{
+
+// send data to BOARD1
+		if(UART_EMPTY(&uart))
+		{
+			int size = 20;
+			unsigned char buffer[size];
+			buffer[0] = 0xff;
+			buffer[1] = SYNC_CODE;
+			memcpy(buffer + 2, imu.i2c_buffer, 14);
+			buffer[16] = hall.value & 0xff;
+			buffer[17] = (hall.value >> 8) & 0xff;
+			buffer[18] = 0;
+			buffer[19] = 0;
+			send_uart(&uart, buffer, size);
+		}
+		
 //		TRACE
 /*
  * 		for(i = 0; i < 14; i++)
@@ -328,8 +345,8 @@ void send_result()
 	imu.count++;
 	if(mane_time - imu.time2 > HZ)
 	{
-		TRACE
-		print_number(&uart, imu.count);
+//		TRACE
+//		print_number(&uart, imu.count);
 		imu.count = 0;
 		imu.time2 = mane_time;
 	}
@@ -467,7 +484,13 @@ void init_imu()
 
 
 
-#endif // BOARD2
+#else // BOARD2
+
+void HAL_I2C_MspInit(I2C_HandleTypeDef *hi2c)
+{
+}
+
+#endif // !BOARD2
 
 
 

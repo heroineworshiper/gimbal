@@ -11,50 +11,144 @@
 
 #include "feiyu_imu.h"
 #include "feiyu_mane.h"
+#include "feiyu_hall.h"
+#include "feiyu_motor.h"
 #include "feiyu_uart.h"
 #include "arm_linux.h"
 #include "stm32f1xx_hal_flash.h"
 #include "stm32f1xx_hal_gpio.h"
 #include "stm32f1xx_hal_uart.h"
 #include "stm32f1xx_hal_rcc.h"
+#include "math.h"
 
 volatile int mane_time = 0;
+feiyu_t fei;
 
 
-#if 0
-// the mane timer
-TIM_HandleTypeDef    TimHandle;
-void init_timer()
+
+
+// IMU data
+#ifndef BOARD2
+
+
+void (*imu_parsing_function)(unsigned char c);
+unsigned char imu_buffer[32];
+int imu_offset;
+
+
+void get_imu_sync1(unsigned char c);
+void get_imu_sync2(unsigned char c);
+void get_imu_data(unsigned char c)
 {
-	__HAL_RCC_TIM3_CLK_ENABLE();
+	imu_buffer[imu_offset++] = c;
+	int size = 20;
+
+	if(imu_offset >= size)
+	{
+		imu_parsing_function = get_imu_sync1;
+#ifdef BOARD1
+// append this board's hall effect sensor & resend
+		imu_buffer[18] = hall.value & 0xff;
+		imu_buffer[19] = (hall.value >> 8) & 0xff;
+		send_uart(&uart, imu_buffer, size);
 
 
-// auto reload value
-	TIM3->ARR = 10000 - 1;
-// prescaler
-	TIM3->PSC = 720000 - 1;
-// mode bits
-	uint32_t cr1_value = TIM3->CR1;
-	cr1_value &= ~(TIM_CR1_DIR | TIM_CR1_CMS | TIM_CR1_CKD);
-	cr1_value |= TIM_COUNTERMODE_UP | TIM_CLOCKDIVISION_DIV1;
-	TIM3->CR1 = cr1_value;
+#else // BOARD1
+// parse it
 
-// enable interrupt
-	TIM3->DIER |= TIM_IT_UPDATE;
-// start timer
-	TIM3->CR1 |= TIM_CR1_CEN;
-	
-	HAL_NVIC_SetPriority(TIM3_IRQn, 3, 0);
-	HAL_NVIC_EnableIRQ(TIM3_IRQn);
+//TRACE
+//print_buffer(&uart, imu_buffer, size);		
+//print_buffer(&uart, imu_buffer, size);		
+
+		fei.hall0 = hall.value;
+		fei.hall1 = (imu_buffer[19] << 8) | imu_buffer[18];
+		fei.hall2 = (imu_buffer[17] << 8) | imu_buffer[16];
+/*
+ * TRACE
+ * print_number(&uart, fei.hall0);		
+ * print_number(&uart, fei.hall1);		
+ * print_number(&uart, fei.hall2);		
+ */
+
+#endif // !BOARD1
+	}
+}
+
+void get_imu_sync2(unsigned char c)
+{
+	if(c == SYNC_CODE)
+	{
+		imu_parsing_function = get_imu_data;
+		imu_buffer[1] = SYNC_CODE;
+		imu_offset = 2;
+	}
+}
+
+void get_imu_sync1(unsigned char c)
+{
+	if(c == 0xff)
+	{
+		imu_parsing_function = get_imu_sync2;
+		imu_buffer[0] = 0xff;
+	}
 }
 
 
 
+#endif // !BOARD2
 
-void TIM3_IRQHandler()
+
+
+
+// motor data
+#ifndef BOARD0
+
+
+unsigned char motor_buffer[32];
+int motor_offset;
+void (*motor_parsing_function)(unsigned char c);
+
+void get_motor_sync1(unsigned char c);
+void get_motor_sync2(unsigned char c);
+void get_motor_data(unsigned char c)
 {
+	motor_buffer[motor_offset++] = c;
+	int size = 8;
+
+	if(motor_offset >= size)
+	{
+		motor_parsing_function = get_motor_sync1;
+#ifndef BOARD2
+// resend it
+		send_uart(&uart2, motor_buffer, size);
+#endif // !BOARD1
+	}
 }
-#endif // 0
+
+void get_motor_sync2(unsigned char c)
+{
+	if(c == SYNC_CODE)
+	{
+		motor_parsing_function = get_motor_data;
+		motor_buffer[1] = SYNC_CODE;
+		motor_offset = 2;
+	}
+}
+
+void get_motor_sync1(unsigned char c)
+{
+	if(c == 0xff)
+	{
+		motor_parsing_function = get_motor_sync2;
+		motor_buffer[0] = 0xff;
+	}
+}
+
+
+#endif // BOARD0
+
+
+
 
 
 
@@ -125,10 +219,13 @@ void main()
 
 #ifdef BOARD0
 	print_text(&uart, "Welcome to Feiyu BOARD0\n");
+	imu_parsing_function = get_imu_sync1;
 #endif
 
 #ifdef BOARD1
 	print_text(&uart, "Welcome to Feiyu BOARD1\n");
+	imu_parsing_function = get_imu_sync1;
+	motor_parsing_function = get_motor_sync1;
 #endif
 
 #ifdef BOARD2
@@ -147,6 +244,7 @@ void main()
 	
 	init_imu();
 	
+	motor_parsing_function = get_motor_sync1;
 	
 #endif // BOARD2
 
@@ -159,9 +257,78 @@ void main()
 	while(1)
 	{
 		handle_uart();
+#ifdef BOARD2
 		handle_imu();
+#endif
+
 		handle_hall();
 		handle_adc();
+
+
+// IMU data
+#ifndef BOARD2
+		if(uart_got_input(&uart2))
+		{
+			unsigned char c = uart_get_input(&uart2);
+			imu_parsing_function(c);
+			
+		}
+#endif // !BOARD2
+
+// motor command
+#ifndef BOARD0
+		if(uart_got_input(&uart))
+		{
+			unsigned char c = uart_get_input(&uart);
+			motor_parsing_function(c);
+		}
+#endif // !BOARD0
+
+// user command
+#ifdef BOARD0
+		if(uart_got_input(&uart))
+		{
+			unsigned char c = uart_get_input(&uart);
+			
+		}
+#endif // BOARD0
+
+// DEBUG
+// 		if(uart_got_input(&uart))
+// 		{
+// 			char c = uart_get_input(&uart);
+// 			if(c == 'w')
+// 			{
+// 				motor.phase += FRACTION;
+// 				TRACE
+// 				print_number(&uart, motor.phase / FRACTION);
+// 				write_motor();
+// 			}
+// 			else
+// 			if(c == 'z')
+// 			{
+// 				motor.phase -= FRACTION;
+// 				TRACE
+// 				print_number(&uart, motor.phase / FRACTION);
+// 				write_motor();
+// 			}
+// 			else
+// 			if(c == 'u')
+// 			{
+// 				motor.deadband++;
+// 				TRACE
+// 				print_number(&uart, motor.deadband);
+// 				set_deadband();
+// 			}
+// 			else
+// 			if(c == 'n')
+// 			{
+// 				motor.deadband--;
+// 				TRACE
+// 				print_number(&uart, motor.deadband);
+// 				set_deadband();
+// 			}
+// 		}
 	}
 }
 

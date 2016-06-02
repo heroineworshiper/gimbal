@@ -5,8 +5,12 @@
 typedef struct
 {
 	void (*current_function)();
-	int value1;
-	int value2;
+	int current1;
+	int current2;
+	int current_avg;
+	int count;
+	int battery;
+	int battery_avg;
 } adc_t;
 
 extern adc_t adc;

@@ -137,6 +137,124 @@ static void TIM_CCxNChannelCmd(TIM_TypeDef* TIMx, uint32_t Channel, uint32_t Cha
   */
 
 
+
+
+
+
+
+
+/**
+  * @brief   Configures the Break feature, dead time, Lock level, OSSI/OSSR State
+  *          and the AOE(automatic output enable).
+  * @param  htim : TIM handle
+  * @param  sBreakDeadTimeConfig : pointer to a TIM_ConfigBreakDeadConfigTypeDef structure that
+  *         contains the BDTR Register configuration  information for the TIM peripheral.
+  * @retval HAL status
+  */
+HAL_StatusTypeDef HAL_TIMEx_ConfigBreakDeadTime(TIM_HandleTypeDef *htim,
+                                                TIM_BreakDeadTimeConfigTypeDef *sBreakDeadTimeConfig)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_BREAK_INSTANCE(htim->Instance));
+  assert_param(IS_TIM_OSSR_STATE(sBreakDeadTimeConfig->OffStateRunMode));
+  assert_param(IS_TIM_OSSI_STATE(sBreakDeadTimeConfig->OffStateIDLEMode));
+  assert_param(IS_TIM_LOCK_LEVEL(sBreakDeadTimeConfig->LockLevel));
+  assert_param(IS_TIM_DEADTIME(sBreakDeadTimeConfig->DeadTime));
+  assert_param(IS_TIM_BREAK_STATE(sBreakDeadTimeConfig->BreakState));
+  assert_param(IS_TIM_BREAK_POLARITY(sBreakDeadTimeConfig->BreakPolarity));
+  assert_param(IS_TIM_AUTOMATIC_OUTPUT_STATE(sBreakDeadTimeConfig->AutomaticOutput));
+
+  /* Process Locked */
+  __HAL_LOCK(htim);
+
+  htim->State = HAL_TIM_STATE_BUSY;
+
+  /* Set the Lock level, the Break enable Bit and the Polarity, the OSSR State,
+     the OSSI State, the dead time value and the Automatic Output Enable Bit */
+  htim->Instance->BDTR = (uint32_t)sBreakDeadTimeConfig->OffStateRunMode  |
+                                   sBreakDeadTimeConfig->OffStateIDLEMode |
+                                   sBreakDeadTimeConfig->LockLevel        |
+                                   sBreakDeadTimeConfig->DeadTime         |
+                                   sBreakDeadTimeConfig->BreakState       |
+                                   sBreakDeadTimeConfig->BreakPolarity    |
+                                   sBreakDeadTimeConfig->AutomaticOutput;
+
+
+  htim->State = HAL_TIM_STATE_READY;
+
+  __HAL_UNLOCK(htim);
+
+  return HAL_OK;
+}
+
+
+/**
+  * @brief  Enables or disables the TIM Capture Compare Channel xN.
+  * @param  TIMx  to select the TIM peripheral
+  * @param  Channel : specifies the TIM Channel
+  *          This parameter can be one of the following values:
+  *            @arg TIM_Channel_1: TIM Channel 1
+  *            @arg TIM_Channel_2: TIM Channel 2
+  *            @arg TIM_Channel_3: TIM Channel 3
+  * @param  ChannelNState : specifies the TIM Channel CCxNE bit new state.
+  *          This parameter can be: TIM_CCxN_ENABLE or TIM_CCxN_Disable.
+  * @retval None
+  */
+static void TIM_CCxNChannelCmd(TIM_TypeDef* TIMx, uint32_t Channel, uint32_t ChannelNState)
+{
+  uint32_t tmp = 0;
+
+  tmp = TIM_CCER_CC1NE << Channel;
+
+  /* Reset the CCxNE Bit */
+  TIMx->CCER &=  ~tmp;
+
+  /* Set or reset the CCxNE Bit */
+  TIMx->CCER |=  (uint32_t)(ChannelNState << Channel);
+}
+
+
+/**
+  * @brief  Starts the PWM signal generation on the complementary output.
+  * @param  htim : TIM handle
+  * @param  Channel : TIM Channel to be enabled
+  *          This parameter can be one of the following values:
+  *            @arg TIM_CHANNEL_1: TIM Channel 1 selected
+  *            @arg TIM_CHANNEL_2: TIM Channel 2 selected
+  *            @arg TIM_CHANNEL_3: TIM Channel 3 selected
+  *            @arg TIM_CHANNEL_4: TIM Channel 4 selected
+  * @retval HAL status
+  */
+HAL_StatusTypeDef HAL_TIMEx_PWMN_Start(TIM_HandleTypeDef *htim, uint32_t Channel)
+{
+  /* Check the parameters */
+  assert_param(IS_TIM_CCXN_INSTANCE(htim->Instance, Channel));
+
+  /* Enable the complementary PWM output  */
+  TIM_CCxNChannelCmd(htim->Instance, Channel, TIM_CCxN_ENABLE);
+
+  /* Enable the Main Ouput */
+  __HAL_TIM_MOE_ENABLE(htim);
+
+  /* Enable the Peripheral */
+  __HAL_TIM_ENABLE(htim);
+
+  /* Return function status */
+  return HAL_OK;
+}
+
+
+
+
+
+
+
+
+
+
+#if 0
+
+
 /** @defgroup TIMEx_Exported_Functions_Group1 Timer Hall Sensor functions
  *  @brief    Timer Hall Sensor functions
  *
@@ -382,6 +500,11 @@ HAL_StatusTypeDef HAL_TIMEx_HallSensor_Stop_IT(TIM_HandleTypeDef *htim)
   return HAL_OK;
 }
 
+
+
+
+
+
 /**
   * @brief  Starts the TIM Hall Sensor Interface in DMA mode.
   * @param  htim : TIM Hall Sensor handle
@@ -455,6 +578,10 @@ HAL_StatusTypeDef HAL_TIMEx_HallSensor_Stop_DMA(TIM_HandleTypeDef *htim)
   /* Return function status */
   return HAL_OK;
 }
+
+
+
+
 
 /**
   * @}
@@ -902,34 +1029,6 @@ HAL_StatusTypeDef HAL_TIMEx_OCN_Stop_DMA(TIM_HandleTypeDef *htim, uint32_t Chann
   * @{
   */
 
-/**
-  * @brief  Starts the PWM signal generation on the complementary output.
-  * @param  htim : TIM handle
-  * @param  Channel : TIM Channel to be enabled
-  *          This parameter can be one of the following values:
-  *            @arg TIM_CHANNEL_1: TIM Channel 1 selected
-  *            @arg TIM_CHANNEL_2: TIM Channel 2 selected
-  *            @arg TIM_CHANNEL_3: TIM Channel 3 selected
-  *            @arg TIM_CHANNEL_4: TIM Channel 4 selected
-  * @retval HAL status
-  */
-HAL_StatusTypeDef HAL_TIMEx_PWMN_Start(TIM_HandleTypeDef *htim, uint32_t Channel)
-{
-  /* Check the parameters */
-  assert_param(IS_TIM_CCXN_INSTANCE(htim->Instance, Channel));
-
-  /* Enable the complementary PWM output  */
-  TIM_CCxNChannelCmd(htim->Instance, Channel, TIM_CCxN_ENABLE);
-
-  /* Enable the Main Ouput */
-  __HAL_TIM_MOE_ENABLE(htim);
-
-  /* Enable the Peripheral */
-  __HAL_TIM_ENABLE(htim);
-
-  /* Return function status */
-  return HAL_OK;
-}
 
 /**
   * @brief  Stops the PWM signal generation on the complementary output.
@@ -1614,49 +1713,16 @@ HAL_StatusTypeDef HAL_TIMEx_ConfigCommutationEvent_DMA(TIM_HandleTypeDef *htim, 
   return HAL_OK;
 }
 
-/**
-  * @brief   Configures the Break feature, dead time, Lock level, OSSI/OSSR State
-  *          and the AOE(automatic output enable).
-  * @param  htim : TIM handle
-  * @param  sBreakDeadTimeConfig : pointer to a TIM_ConfigBreakDeadConfigTypeDef structure that
-  *         contains the BDTR Register configuration  information for the TIM peripheral.
-  * @retval HAL status
-  */
-HAL_StatusTypeDef HAL_TIMEx_ConfigBreakDeadTime(TIM_HandleTypeDef *htim,
-                                                TIM_BreakDeadTimeConfigTypeDef *sBreakDeadTimeConfig)
-{
-  /* Check the parameters */
-  assert_param(IS_TIM_BREAK_INSTANCE(htim->Instance));
-  assert_param(IS_TIM_OSSR_STATE(sBreakDeadTimeConfig->OffStateRunMode));
-  assert_param(IS_TIM_OSSI_STATE(sBreakDeadTimeConfig->OffStateIDLEMode));
-  assert_param(IS_TIM_LOCK_LEVEL(sBreakDeadTimeConfig->LockLevel));
-  assert_param(IS_TIM_DEADTIME(sBreakDeadTimeConfig->DeadTime));
-  assert_param(IS_TIM_BREAK_STATE(sBreakDeadTimeConfig->BreakState));
-  assert_param(IS_TIM_BREAK_POLARITY(sBreakDeadTimeConfig->BreakPolarity));
-  assert_param(IS_TIM_AUTOMATIC_OUTPUT_STATE(sBreakDeadTimeConfig->AutomaticOutput));
-
-  /* Process Locked */
-  __HAL_LOCK(htim);
-
-  htim->State = HAL_TIM_STATE_BUSY;
-
-  /* Set the Lock level, the Break enable Bit and the Polarity, the OSSR State,
-     the OSSI State, the dead time value and the Automatic Output Enable Bit */
-  htim->Instance->BDTR = (uint32_t)sBreakDeadTimeConfig->OffStateRunMode  |
-                                   sBreakDeadTimeConfig->OffStateIDLEMode |
-                                   sBreakDeadTimeConfig->LockLevel        |
-                                   sBreakDeadTimeConfig->DeadTime         |
-                                   sBreakDeadTimeConfig->BreakState       |
-                                   sBreakDeadTimeConfig->BreakPolarity    |
-                                   sBreakDeadTimeConfig->AutomaticOutput;
 
 
-  htim->State = HAL_TIM_STATE_READY;
 
-  __HAL_UNLOCK(htim);
 
-  return HAL_OK;
-}
+
+
+
+
+
+
 
 #endif /* defined(STM32F100xB) || defined(STM32F100xE) ||                                                 */
        /* defined(STM32F103x6) || defined(STM32F103xB) || defined(STM32F103xE) || defined(STM32F103xG) || */
@@ -1813,37 +1879,18 @@ HAL_TIM_StateTypeDef HAL_TIMEx_HallSensor_GetState(TIM_HandleTypeDef *htim)
   */
 
 /**
-  * @brief  Enables or disables the TIM Capture Compare Channel xN.
-  * @param  TIMx  to select the TIM peripheral
-  * @param  Channel : specifies the TIM Channel
-  *          This parameter can be one of the following values:
-  *            @arg TIM_Channel_1: TIM Channel 1
-  *            @arg TIM_Channel_2: TIM Channel 2
-  *            @arg TIM_Channel_3: TIM Channel 3
-  * @param  ChannelNState : specifies the TIM Channel CCxNE bit new state.
-  *          This parameter can be: TIM_CCxN_ENABLE or TIM_CCxN_Disable.
-  * @retval None
-  */
-static void TIM_CCxNChannelCmd(TIM_TypeDef* TIMx, uint32_t Channel, uint32_t ChannelNState)
-{
-  uint32_t tmp = 0;
-
-  tmp = TIM_CCER_CC1NE << Channel;
-
-  /* Reset the CCxNE Bit */
-  TIMx->CCER &=  ~tmp;
-
-  /* Set or reset the CCxNE Bit */
-  TIMx->CCER |=  (uint32_t)(ChannelNState << Channel);
-}
-
-/**
   * @}
   */
 
 #endif /* defined(STM32F100xB) || defined(STM32F100xE) ||                                                 */
        /* defined(STM32F103x6) || defined(STM32F103xB) || defined(STM32F103xE) || defined(STM32F103xG) || */
        /* defined(STM32F105xC) || defined(STM32F107xC)                                                    */
+
+#endif // 0
+
+
+
+
 
 #endif /* HAL_TIM_MODULE_ENABLED */
 /**

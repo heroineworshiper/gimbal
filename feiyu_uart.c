@@ -279,6 +279,15 @@ void print_hex2(uart_t *uart, uint32_t number)
 	send_uart(uart, buffer, 3);
 }
 
+void print_buffer(uart_t *uart, unsigned char *buffer, int size)
+{
+	int i;
+	for(i = 0; i < size; i++)
+	{
+		print_hex2(uart, buffer[i]);
+	}
+}
+
 void print_hex8(uart_t *uart, uint32_t number)
 {
 	char buffer[16];

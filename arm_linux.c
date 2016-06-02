@@ -1,4 +1,5 @@
 #include "arm_linux.h"
+#include "feiyu_mane.h"
 
 #include <stdint.h>
 
@@ -30,4 +31,12 @@ void init_linux()
 
 void _exit()
 {
+}
+
+void mdelay(int msec)
+{
+	int start_time = mane_time;
+	while(mane_time - start_time < msec)
+	{
+	}
 }
