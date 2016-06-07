@@ -21,6 +21,7 @@ extern imu_t imu;
 
 
 void init_imu();
+void do_ahrs(unsigned char *imu_buffer);
 
 #define handle_imu() \
 { \

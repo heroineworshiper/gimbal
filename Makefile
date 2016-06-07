@@ -81,6 +81,7 @@ FEIYU_OBJS := \
 	feiyu_uart.o
 
 FEIYU_MANE_OBJS := \
+	arm_math.o \
 	feiyu_adc.o \
 	feiyu_imu.o \
 	feiyu_hall.o \
@@ -190,6 +191,7 @@ feiyu_hall.o: feiyu_hall.c
 feiyu_mane.o: feiyu_mane.c
 feiyu_motor.o: feiyu_motor.c
 arm_linux.o: arm_linux.c
+arm_math.o: arm_math.c
 feiyu_uart.o: feiyu_uart.c
 stm32f1xx_hal_adc.o: stm32f1xx_hal_adc.c
 stm32f1xx_hal_i2c.o: stm32f1xx_hal_i2c.c

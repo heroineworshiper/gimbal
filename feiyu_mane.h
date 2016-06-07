@@ -80,9 +80,47 @@ extern volatile int mane_time;
 
 typedef struct
 {
+	int test_step;
+	int test_period;
+
 	int hall0;
 	int hall1;
 	int hall2;
+
+	int gyro_count;
+	int accel_x;
+	int accel_y;
+	int accel_z;
+	int gyro_x;
+	int gyro_y;
+	int gyro_z;
+	int gyro_x_accum;
+	int gyro_y_accum;
+	int gyro_z_accum;
+	int gyro_x_min;
+	int gyro_y_min;
+	int gyro_z_min;
+	int gyro_x_max;
+	int gyro_y_max;
+	int gyro_z_max;
+	int prev_gyro_x_center;
+	int prev_gyro_y_center;
+	int prev_gyro_z_center;
+	int gyro_x_center;
+	int gyro_y_center;
+	int gyro_z_center;
+	int total_gyro;
+	int calibrate_imu;
+	int blend_counter;
+	
+	int abs_roll;
+	int abs_pitch;
+	int gyro_roll;
+	int gyro_pitch;
+	int gyro_heading;
+	int current_roll;
+	int current_pitch;
+	int current_heading;
 } feiyu_t;
 
 extern feiyu_t fei;

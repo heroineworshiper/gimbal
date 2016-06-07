@@ -20,48 +20,51 @@ ADC_ChannelConfTypeDef   sConfig;
 void get_adc0();
 
 
-#if 0
+#if 1
 
-void get_adc2()
-{
-	if(HAL_IS_BIT_SET(AdcHandle1.Instance->SR, ADC_FLAG_EOC))
-	{
-
-		adc.current2 = AdcHandle1.Instance->DR;
-		adc.current_function = get_adc0;
-
-TRACE
-print_number(&uart, adc.battery);
-print_number(&uart, adc.current1);
-print_number(&uart, adc.current2);
-
-	}
-}
+/*
+ * void get_adc2()
+ * {
+ * 	if(HAL_IS_BIT_SET(AdcHandle1.Instance->SR, ADC_FLAG_EOC))
+ * 	{
+ * 
+ * 		adc.current2 = AdcHandle1.Instance->DR;
+ * 		adc.current_function = get_adc0;
+ * 
+ * 
+ * 	}
+ * }
+ */
 
 void get_adc1()
 {
 	if(HAL_IS_BIT_SET(AdcHandle2.Instance->SR, ADC_FLAG_EOC))
 	{
 		adc.current2 += AdcHandle2.Instance->DR;
-		adc.count++;
-		if(adc.count > 65536)
+		adc.current2_count++;
+		if(adc.current2_count > 65536)
 		{
-			adc.current_avg = (adc.current1 + adc.current2) / adc.count;
-TRACE
-print_number(&uart, adc.current1 / adc.count);
-print_number(&uart, adc.current2 / adc.count);
-print_number(&uart, adc.current_avg);
-			adc.count = 0;
-			adc.current1 = 0;
+			adc.current2_avg = adc.current2 / adc.current2_count;
+
+/*
+ * TRACE
+ * print_number(&uart, adc.current1_avg);
+ * print_number(&uart, adc.current2_avg);
+ * print_number(&uart, adc.current1_avg + adc.current2_avg);
+ */
+
+			adc.current2_count = 0;
 			adc.current2 = 0;
 		}
-		
+
 		__HAL_ADC_CLEAR_FLAG(&AdcHandle2, ADC_FLAG_EOC);
 		/* Start ADC conversion on regular group with SW start */
     	SET_BIT(AdcHandle2.Instance->CR2, (ADC_CR2_SWSTART | ADC_CR2_EXTTRIG));
 		adc.current_function = get_adc0;
 
 	}
+
+	adc.current_function = get_adc0;
 }
 
 #endif // 0
@@ -72,24 +75,26 @@ void get_adc0()
 	if(HAL_IS_BIT_SET(AdcHandle1.Instance->SR, ADC_FLAG_EOC))
 	{
 
-		adc.battery += AdcHandle1.Instance->DR;
+		adc.current1 += AdcHandle1.Instance->DR;
 		__HAL_ADC_CLEAR_FLAG(&AdcHandle1, ADC_FLAG_EOC);
 		/* Start ADC conversion on regular group with SW start */
     	SET_BIT(AdcHandle1.Instance->CR2, (ADC_CR2_SWSTART | ADC_CR2_EXTTRIG));
 
-		adc.count++;
-		if(adc.count > 4096)
+		adc.current1_count++;
+		if(adc.current1_count > 65536)
 		{
-			adc.battery_avg = (adc.battery) / adc.count;
+			adc.current1_avg = (adc.current1) / adc.current1_count;
 //TRACE
 //print_number(&uart, adc.battery_avg);
 //print_number(&uart, motor.deadband);
 			update_deadband();
-			adc.count = 0;
-			adc.battery = 0;
+			adc.current1_count = 0;
+			adc.current1 = 0;
 		}
 
 	}
+
+	adc.current_function = get_adc1;
 }
 
 
@@ -148,7 +153,7 @@ void init_adc()
 	/*       conversion is out of the analog watchdog window selected (ADC IT   */
 	/*       enabled), select sampling time and ADC clock with sufficient       */
 	/*       duration to not create an overhead situation in IRQHandler.        */
-	sConfig.Channel      = ADC_CHANNEL_2;
+	sConfig.Channel      = ADC_CHANNEL_0;
 	sConfig.Rank         = ADC_REGULAR_RANK_1;
 	sConfig.SamplingTime = ADC_SAMPLETIME_239CYCLES_5;
 
@@ -160,7 +165,7 @@ void init_adc()
 	/* Start ADC conversion on regular group with SW start */
     SET_BIT(AdcHandle1.Instance->CR2, (ADC_CR2_SWSTART | ADC_CR2_EXTTRIG));
 
-#if 0
+#if 1
 	/* Configuration of ADCx init structure: ADC parameters and regular group */
 	AdcHandle2.Instance = ADC2;
 	AdcHandle2.Init.DataAlign             = ADC_DATAALIGN_RIGHT;
@@ -187,7 +192,7 @@ void init_adc()
 	__HAL_ADC_CLEAR_FLAG(&AdcHandle2, ADC_FLAG_EOC);
 	/* Start ADC conversion on regular group with SW start */
     SET_BIT(AdcHandle2.Instance->CR2, (ADC_CR2_SWSTART | ADC_CR2_EXTTRIG));
-#endif
+#endif // 0
 
 
 	adc.current_function = get_adc0;

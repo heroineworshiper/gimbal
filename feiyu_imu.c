@@ -8,6 +8,224 @@
 #include "stm32f1xx_hal_i2c.h"
 #include "stm32f1xx_hal_gpio.h"
 #include "stm32f1xx_hal_rcc.h"
+#include "arm_math.h"
+
+#ifdef BOARD0
+
+
+#define GYRO_RATIO 8
+#define ACCEL_BANDWIDTH 16
+#define GYRO_CENTER_MAX 0
+#define GYRO_CENTER_TOTAL IMU_HZ
+#define MAX_GYRO_DRIFT 0
+#define BLEND_DOWNSAMPLE (IMU_HZ / 10)
+#define ATTITUDE_BLEND (FRACTION / 4)
+#define ANGLE_TO_GYRO 910
+
+
+static int fix_gyro_angle(int gyro_angle)
+{
+	if(gyro_angle > 180 * ANGLE_TO_GYRO * FRACTION)
+		gyro_angle -= 360 * ANGLE_TO_GYRO * FRACTION;
+	else
+	if(gyro_angle < -180 * ANGLE_TO_GYRO * FRACTION)
+		gyro_angle += 360 * ANGLE_TO_GYRO * FRACTION;
+	return gyro_angle;
+}
+
+
+void do_ahrs(unsigned char *imu_buffer)
+{
+
+/*
+* TRACE
+* print_number(&uart, fei.hall0);		
+* print_number(&uart, fei.hall1);		
+* print_number(&uart, fei.hall2);		
+*/
+
+	fei.gyro_count++;
+	if(fei.gyro_count >= GYRO_RATIO)
+	{
+		fei.gyro_count = 0;
+		int accel_x = (int16_t)((imu_buffer[2] << 8) | imu_buffer[3]);
+		int accel_y = (int16_t)((imu_buffer[4] << 8) | imu_buffer[5]);
+		int accel_z = (int16_t)((imu_buffer[6] << 8) | imu_buffer[7]);
+
+		fei.accel_x = (fei.accel_x * (FRACTION - ACCEL_BANDWIDTH) +
+			accel_x * FRACTION * ACCEL_BANDWIDTH) / FRACTION;
+		fei.accel_y = (fei.accel_y * (FRACTION - ACCEL_BANDWIDTH) +
+			accel_y * FRACTION * ACCEL_BANDWIDTH) / FRACTION;
+		fei.accel_z = (fei.accel_z * (FRACTION - ACCEL_BANDWIDTH) +
+			accel_z * FRACTION * ACCEL_BANDWIDTH) / FRACTION;
+
+// absolute angles
+		if(abs_fixed(fei.accel_z) < 256)
+		{
+			fei.abs_roll = 0;
+			fei.abs_pitch = 0;
+		}
+		else
+		{
+			fei.abs_roll = -atan2_fixed(fei.accel_x / 256, fei.accel_z / 256);
+			fei.abs_pitch = -atan2_fixed(-fei.accel_y / 256, fei.accel_z / 256);
+			fei.abs_roll = fix_angle(fei.abs_roll);
+			fei.abs_pitch = fix_angle(fei.abs_pitch);
+		}
+		
+		
+		
+	}
+
+	fei.gyro_x = (int16_t)((imu_buffer[10] << 8) | imu_buffer[11]);
+	fei.gyro_y = (int16_t)((imu_buffer[12] << 8) | imu_buffer[13]);
+	fei.gyro_z = (int16_t)((imu_buffer[14] << 8) | imu_buffer[15]);
+
+	if(fei.calibrate_imu)
+	{
+		fei.total_gyro++;
+		fei.gyro_x_accum += fei.gyro_x;
+		fei.gyro_y_accum += fei.gyro_y;
+		fei.gyro_z_accum += fei.gyro_z;
+		fei.gyro_x_min = MIN(fei.gyro_x, fei.gyro_x_min);
+		fei.gyro_y_min = MIN(fei.gyro_y, fei.gyro_y_min);
+		fei.gyro_z_min = MIN(fei.gyro_z, fei.gyro_z_min);
+		fei.gyro_x_max = MAX(fei.gyro_x, fei.gyro_x_max);
+		fei.gyro_y_max = MAX(fei.gyro_y, fei.gyro_y_max);
+		fei.gyro_z_max = MAX(fei.gyro_z, fei.gyro_z_max);
+
+		if(ABS(fei.gyro_x_max - fei.gyro_x_min) > GYRO_CENTER_MAX ||
+			ABS(fei.gyro_y_max - fei.gyro_y_min) > GYRO_CENTER_MAX ||
+			ABS(fei.gyro_z_max - fei.gyro_z_min) > GYRO_CENTER_MAX)
+		{
+			TRACE2
+			print_text(&uart, "center too big ");
+			print_number(&uart, ABS(fei.gyro_x_max - fei.gyro_x_min));
+			print_number(&uart, ABS(fei.gyro_y_max - fei.gyro_y_min));
+			print_number(&uart, ABS(fei.gyro_z_max - fei.gyro_z_min));
+
+			fei.total_gyro = 0;
+			fei.gyro_x_accum = 0;
+			fei.gyro_y_accum = 0;
+			fei.gyro_z_accum = 0;
+
+
+			fei.gyro_x_min = 65535;
+			fei.gyro_y_min = 65535;
+			fei.gyro_z_min = 65535;
+			fei.gyro_x_max = -65535;
+			fei.gyro_y_max = -65535;
+			fei.gyro_z_max = -65535;
+		}
+		else
+		if(fei.total_gyro >= GYRO_CENTER_TOTAL)
+		{
+			fei.prev_gyro_x_center = fei.gyro_x_center;
+			fei.prev_gyro_y_center = fei.gyro_y_center;
+			fei.prev_gyro_z_center = fei.gyro_z_center;
+
+ 			fei.gyro_x_center = fei.gyro_x_accum * FRACTION / fei.total_gyro;
+			fei.gyro_y_center = fei.gyro_y_accum * FRACTION / fei.total_gyro;
+			fei.gyro_z_center = fei.gyro_z_accum * FRACTION / fei.total_gyro;
+
+// test if calculation didn't drift
+			TRACE2
+			print_text(&uart, "spread=");
+			print_number(&uart, fei.gyro_x_max - fei.gyro_x_min);
+			print_number(&uart, fei.gyro_y_max - fei.gyro_y_min);
+			print_number(&uart, fei.gyro_z_max - fei.gyro_z_min);
+			print_text(&uart, "center=");
+			print_number(&uart, fei.gyro_x_center);
+			print_number(&uart, fei.gyro_y_center);
+			print_number(&uart, fei.gyro_z_center);
+			print_text(&uart, "drift=");
+			print_number(&uart, fei.prev_gyro_x_center - fei.gyro_x_center);
+			print_number(&uart, fei.prev_gyro_y_center - fei.gyro_y_center);
+			print_number(&uart, fei.prev_gyro_z_center - fei.gyro_z_center);
+
+
+			if(ABS(fei.prev_gyro_x_center) > 0 && 
+				ABS(fei.prev_gyro_y_center) > 0 && 
+				ABS(fei.prev_gyro_z_center) > 0 && 
+				ABS(fei.prev_gyro_x_center - fei.gyro_x_center) < MAX_GYRO_DRIFT &&
+				ABS(fei.prev_gyro_y_center - fei.gyro_y_center) < MAX_GYRO_DRIFT &&
+				ABS(fei.prev_gyro_z_center - fei.gyro_z_center) < MAX_GYRO_DRIFT)
+			{
+				TRACE2
+				print_text(&uart, "got center\n");
+				fei.calibrate_imu = 0;
+			}
+			else
+// try again
+			{
+				fei.total_gyro = 0;
+				fei.gyro_x_accum = 0;
+				fei.gyro_y_accum = 0;
+				fei.gyro_z_accum = 0;
+
+
+				fei.gyro_x_min = 65535;
+				fei.gyro_y_min = 65535;
+				fei.gyro_z_min = 65535;
+				fei.gyro_x_max = -65535;
+				fei.gyro_y_max = -65535;
+				fei.gyro_z_max = -65535;
+			}
+		}
+
+// predict gyro accumulation
+		fei.current_roll = fei.abs_roll;
+		fei.current_pitch = fei.abs_pitch;
+		fei.current_heading = 0;
+		fei.gyro_roll = fei.current_roll * ANGLE_TO_GYRO;
+		fei.gyro_pitch = fei.current_pitch * ANGLE_TO_GYRO;
+		fei.gyro_heading = 0;
+	}
+	else
+// not calibrating
+	{
+// only use integer part to avoid saturation
+		fei.gyro_roll += (fei.gyro_x - fei.gyro_x_center) / FRACTION;
+		fei.gyro_pitch += (fei.gyro_y - fei.gyro_y_center) / FRACTION;
+		fei.gyro_heading += (fei.gyro_z - fei.gyro_z_center) / FRACTION;
+
+		fei.gyro_roll = fix_gyro_angle(fei.gyro_roll);
+		fei.gyro_pitch = fix_gyro_angle(fei.gyro_pitch);
+		fei.gyro_heading = fix_gyro_angle(fei.gyro_heading);
+		
+
+		fei.blend_counter++;
+		if(fei.blend_counter >= BLEND_DOWNSAMPLE)
+		{
+ 			fei.blend_counter = 0;
+			int error = get_angle_change_fixed(fei.gyro_roll / ANGLE_TO_GYRO, 
+				fei.abs_roll);
+			fei.gyro_roll += error * ANGLE_TO_GYRO / ATTITUDE_BLEND;
+
+			error = get_angle_change_fixed(fei.gyro_pitch / ANGLE_TO_GYRO, 
+				fei.abs_pitch);
+			fei.gyro_pitch += error * ANGLE_TO_GYRO / ATTITUDE_BLEND;
+		}
+	
+
+		fei.current_roll = fei.gyro_roll / ANGLE_TO_GYRO;
+		fei.current_pitch = fei.gyro_pitch / ANGLE_TO_GYRO;
+		fei.current_heading = fei.gyro_heading / ANGLE_TO_GYRO;
+		fei.current_roll = fix_angle(fei.current_roll);
+		fei.current_pitch = fix_angle(fei.current_pitch);
+		fei.current_heading = fix_angle(fei.current_heading);
+	}
+
+
+}
+
+
+
+#endif // BOARD0
+
+
+
+
 
 
 
@@ -18,6 +236,9 @@
 
 I2C_HandleTypeDef I2cHandle;
 imu_t imu;
+
+
+
 
 
 

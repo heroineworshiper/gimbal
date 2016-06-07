@@ -19,13 +19,10 @@
 #include "stm32f1xx_hal_gpio.h"
 #include "stm32f1xx_hal_uart.h"
 #include "stm32f1xx_hal_rcc.h"
-#include "math.h"
+#include "arm_math.h"
 
 volatile int mane_time = 0;
 feiyu_t fei;
-
-
-
 
 // IMU data
 #ifndef BOARD2
@@ -63,12 +60,9 @@ void get_imu_data(unsigned char c)
 		fei.hall0 = hall.value;
 		fei.hall1 = (imu_buffer[19] << 8) | imu_buffer[18];
 		fei.hall2 = (imu_buffer[17] << 8) | imu_buffer[16];
-/*
- * TRACE
- * print_number(&uart, fei.hall0);		
- * print_number(&uart, fei.hall1);		
- * print_number(&uart, fei.hall2);		
- */
+
+		do_ahrs(imu_buffer);
+
 
 #endif // !BOARD1
 	}
@@ -220,6 +214,13 @@ void main()
 #ifdef BOARD0
 	print_text(&uart, "Welcome to Feiyu BOARD0\n");
 	imu_parsing_function = get_imu_sync1;
+	fei.calibrate_imu = 1;
+	fei.gyro_x_min = 65535;
+	fei.gyro_y_min = 65535;
+	fei.gyro_z_min = 65535;
+	fei.gyro_x_max = -65535;
+	fei.gyro_y_max = -65535;
+	fei.gyro_z_max = -65535;
 #endif
 
 #ifdef BOARD1
@@ -254,11 +255,16 @@ void main()
 	init_motor();
 
 
+
+	int test_time = mane_time;
+	fei.test_period = 10;
+	fei.test_step = 1;
 	while(1)
 	{
 		handle_uart();
 #ifdef BOARD2
-		handle_imu();
+// DEBUG
+//		handle_imu();
 #endif
 
 		handle_hall();
@@ -277,11 +283,12 @@ void main()
 
 // motor command
 #ifndef BOARD0
-		if(uart_got_input(&uart))
-		{
-			unsigned char c = uart_get_input(&uart);
-			motor_parsing_function(c);
-		}
+// DEBUG
+// 		if(uart_got_input(&uart))
+// 		{
+// 			unsigned char c = uart_get_input(&uart);
+// 			motor_parsing_function(c);
+// 		}
 #endif // !BOARD0
 
 // user command
@@ -293,42 +300,66 @@ void main()
 		}
 #endif // BOARD0
 
+
 // DEBUG
-// 		if(uart_got_input(&uart))
-// 		{
-// 			char c = uart_get_input(&uart);
-// 			if(c == 'w')
-// 			{
-// 				motor.phase += FRACTION;
-// 				TRACE
-// 				print_number(&uart, motor.phase / FRACTION);
-// 				write_motor();
-// 			}
-// 			else
-// 			if(c == 'z')
-// 			{
-// 				motor.phase -= FRACTION;
-// 				TRACE
-// 				print_number(&uart, motor.phase / FRACTION);
-// 				write_motor();
-// 			}
-// 			else
-// 			if(c == 'u')
-// 			{
-// 				motor.deadband++;
-// 				TRACE
-// 				print_number(&uart, motor.deadband);
-// 				set_deadband();
-// 			}
-// 			else
-// 			if(c == 'n')
-// 			{
-// 				motor.deadband--;
-// 				TRACE
-// 				print_number(&uart, motor.deadband);
-// 				set_deadband();
-// 			}
-// 		}
+		if(mane_time - test_time > fei.test_period)
+		{
+			TRACE
+			print_number(&uart, hall.value);
+			print_number(&uart, motor.phase / FRACTION);
+
+			test_time = mane_time;
+			motor.phase += fei.test_step * FRACTION;
+			write_motor();
+		}
+
+
+// DEBUG
+		if(uart_got_input(&uart))
+		{
+			char c = uart_get_input(&uart);
+			if(c == 'w')
+			{
+//				fei.test_step++;
+//				fei.test_period++;
+				motor.phase += 1 * FRACTION;
+				TRACE
+				print_number(&uart, motor.phase / FRACTION);
+				write_motor();
+			}
+			else
+			if(c == 'z')
+			{
+//				fei.test_step--;
+//				fei.test_period--;
+				motor.phase -= 1 * FRACTION;
+				TRACE
+				print_number(&uart, motor.phase / FRACTION);
+				write_motor();
+			}
+			else
+			if(c == 'u')
+			{
+				if(motor.power < MAX_POWER)
+				{
+					motor.power += 16;
+				}
+				TRACE
+				print_number(&uart, motor.power);
+				write_motor();
+			}
+			else
+			if(c == 'n')
+			{
+				if(motor.power > 0)
+				{
+					motor.power -= 16;
+				}
+				TRACE
+				print_number(&uart, motor.power);
+				write_motor();
+			}
+		}
 	}
 }
 

@@ -6,7 +6,7 @@
 #include "stdint.h"
 
 #define N_SIN 256
-#define maxPWM 3600
+#define MAX_PWM 65535
 int table[N_SIN];
 
 int main()
@@ -14,7 +14,7 @@ int main()
 	int i;
 	for(i = 0; i < N_SIN; i++)
 	{
-      table[i] = maxPWM / 2.0 + sin(2.0 * i / N_SIN * M_PI) * maxPWM / 2.0;
+      table[i] = MAX_PWM / 2.0 + sin(2.0 * i / N_SIN * M_PI) * MAX_PWM / 2.0;
 	}  
 
 	printf("const uint16_t sin_table[] = {\n\t");

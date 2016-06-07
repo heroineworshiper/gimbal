@@ -20,7 +20,7 @@ void send_hall_command();
 
 void hall_sleep()
 {
-	if(mane_time - hall.time > 1 ||
+	if(mane_time - hall.time > 0 ||
 		mane_time < hall.time)
 	{
 		hall.current_function = send_hall_command;
@@ -46,7 +46,6 @@ void read_hall_result()
 //TRACE
 //print_number(&uart, hall.value);
 
-		hall.time = mane_time;
 		hall.current_function = hall_sleep;
 	}
 }
@@ -73,6 +72,7 @@ void wait_hall_command()
 
 void send_hall_command()
 {
+	hall.time = mane_time;
 // lower CS
 	CLEAR_PIN(SPI_GPIO, 1 << CS_PIN);
 

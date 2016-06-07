@@ -279,6 +279,43 @@ void print_hex2(uart_t *uart, uint32_t number)
 	send_uart(uart, buffer, 3);
 }
 
+void print_fixed_nospace(uart_t *uart, int number)
+{
+	if(number < 0) 
+	{
+		print_text(uart, "-");
+		number = -number;
+	}
+	
+	print_number_nospace(uart, number / 256);
+	int fraction = ABS(number % 256);
+	char string[1];
+	if(fraction)
+	{
+		send_uart(uart, ".", 1);
+		fraction = fraction * 1000 / 256;
+		string[0] = '0' + (fraction / 100);
+		send_uart(uart, string, 1);
+		string[0] = '0' + ((fraction / 10) % 10);
+		send_uart(uart, string, 1);
+		string[0] = '0' + (fraction % 10);
+		send_uart(uart, string, 1);
+	}
+}
+
+void print_fixed(uart_t *uart, int number)
+{
+	print_fixed_nospace(uart, number);
+	send_uart(uart, " ", 1);
+}
+
+
+
+void print_lf(uart_t *uart)
+{
+	send_uart(uart, "\n", 1);
+}
+
 void print_buffer(uart_t *uart, unsigned char *buffer, int size)
 {
 	int i;

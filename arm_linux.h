@@ -16,9 +16,11 @@
 		dst_byte |= (1 << dst_bit); \
 	else \
 		dst_byte &= ~(1 << dst_bit);
+#define CLIP(x, y, z) (((x) < (y) ? (y) : ((x) > (z) ? (z) : (x))))
 #define CLAMP(x, y, z) ((x) = ((x) < (y) ? (y) : ((x) > (z) ? (z) : (x))))
-#define  MIN(a, b)      (((a) < (b)) ? (a) : (b))
-#define  MAX(a, b)      (((a) > (b)) ? (a) : (b))
+#define MIN(a, b)	   (((a) < (b)) ? (a) : (b))
+#define MAX(a, b)	   (((a) > (b)) ? (a) : (b))
+#define ABS(a)	   (((a) > 0) ? (a) : (-(a)))
 
 #define SET_PIN(gpio, x) gpio->BSRR = (x);
 #define CLEAR_PIN(gpio, x) gpio->BSRR = ((x) << 16);
