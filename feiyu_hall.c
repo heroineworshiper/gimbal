@@ -1,4 +1,5 @@
 #include "feiyu_mane.h"
+#include "feiyu_motor.h"
 #include "feiyu_hall.h"
 #include "feiyu_uart.h"
 #include "stm32f1xx_hal_gpio.h"
@@ -42,11 +43,13 @@ void read_hall_result()
 // raise CS
 		SET_PIN(SPI_GPIO, 1 << CS_PIN);
 		hall.value = SpiHandle.Instance->DR;
+		update_derivative(&hall.dhall, hall.value);
 
 //TRACE
 //print_number(&uart, hall.value);
 
 		hall.current_function = hall_sleep;
+//		update_motor();
 	}
 }
 
@@ -142,6 +145,8 @@ void init_hall()
 	__HAL_SPI_ENABLE(&SpiHandle);
 
 	hall.current_function = send_hall_command;
+
+	init_derivative(&hall.dhall, sizeof(hall.dhall_prev) / sizeof(int));
 	
 }
 

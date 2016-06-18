@@ -87,7 +87,7 @@ void get_adc0()
 //TRACE
 //print_number(&uart, adc.battery_avg);
 //print_number(&uart, motor.deadband);
-			update_deadband();
+//			update_deadband();
 			adc.current1_count = 0;
 			adc.current1 = 0;
 		}

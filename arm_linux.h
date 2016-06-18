@@ -1,5 +1,5 @@
-#ifndef LINUX_H
-#define LINUX_H
+#ifndef ARM_LINUX_H
+#define ARM_LINUX_H
 
 
 

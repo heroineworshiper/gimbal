@@ -1,6 +1,7 @@
-#ifndef MATH_H
-#define MATH_H
+#ifndef ARM_MATH_H
+#define ARM_MATH_H
 
+#include <stdint.h>
 
 
 #define MAX_VECTOR 4
@@ -9,6 +10,7 @@
 //#define absf(x) ((x) > 0 ? (x) : (-(x)))
 //#define abs(x) ((x) > 0 ? (x) : (-(x)))
 #define abs_fixed(x) ((x) > 0 ? (x) : (-(x)))
+extern const int16_t sin_table[];
 
 typedef struct
 {
@@ -90,6 +92,11 @@ void print_vector(vector_t *vec);
 // angles are -180 to 180
 int get_angle_change(int old_angle, int new_angle);
 int get_angle_change_fixed(int old_angle, int new_angle);
+void sin_index(int *sign, int *index, int angle);
+int sin_fixed(int angle);
+// higher precision for the motor table
+int sin_fixed14(int angle);
+int cos_fixed(int angle);
 int tan_fixed(int angle);
 // sqrt from 0-64 * 256
 int sqrt_fixed(int value);

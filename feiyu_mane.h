@@ -38,6 +38,8 @@
 // pitch board
 #define BOARD2
 
+// mane anticogging table
+//#define CALIBRATE_MOTOR
 
 /* Definition for USARTx Pins */
 #define DEBUG_UART						USART1

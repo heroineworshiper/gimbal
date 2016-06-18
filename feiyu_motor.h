@@ -1,6 +1,8 @@
 #ifndef FEIYU_MOTOR_H
 #define FEIYU_MOTOR_H
 
+#include "arm_math.h"
+#include "feiyu_pid.h"
 
 typedef struct
 {
@@ -9,6 +11,13 @@ typedef struct
 	int phase;
 // 0-MAX_POWER
 	int power;
+// target angle in hall reading
+	int hall;
+// change in hall error
+	derivative_t derror;
+	int derror_prev[4];
+	mypid_t pid;
+	
 } motor_t;
 
 #define MAX_POWER 1024
@@ -16,6 +25,7 @@ typedef struct
 extern motor_t motor;
 
 void init_motor();
-void set_deadband();
+void update_motor();
+void motor_test();
 
 #endif

@@ -302,16 +302,21 @@ void main()
 
 
 // DEBUG
+#ifndef CALIBRATE_MOTOR
 		if(mane_time - test_time > fei.test_period)
 		{
-			TRACE
-			print_number(&uart, hall.value);
-			print_number(&uart, motor.phase / FRACTION);
+//			TRACE
+//			print_number(&uart, hall.value);
+//			print_number(&uart, motor.phase / FRACTION);
 
 			test_time = mane_time;
 			motor.phase += fei.test_step * FRACTION;
+//			motor.hall += fei.test_step;
 			write_motor();
 		}
+#else
+		motor_test();
+#endif 
 
 
 // DEBUG
@@ -323,9 +328,11 @@ void main()
 //				fei.test_step++;
 //				fei.test_period++;
 				motor.phase += 1 * FRACTION;
-				TRACE
-				print_number(&uart, motor.phase / FRACTION);
 				write_motor();
+//				motor.hall += 10;
+//				TRACE
+//				print_number(&uart, motor.phase / FRACTION);
+//				print_number(&uart, motor.hall);
 			}
 			else
 			if(c == 'z')
@@ -333,16 +340,18 @@ void main()
 //				fei.test_step--;
 //				fei.test_period--;
 				motor.phase -= 1 * FRACTION;
-				TRACE
-				print_number(&uart, motor.phase / FRACTION);
 				write_motor();
+//				motor.hall -= 10;
+//				TRACE
+//				print_number(&uart, motor.phase / FRACTION);
+//				print_number(&uart, motor.hall);
 			}
 			else
 			if(c == 'u')
 			{
 				if(motor.power < MAX_POWER)
 				{
-					motor.power += 16;
+					motor.power += MAX_POWER;
 				}
 				TRACE
 				print_number(&uart, motor.power);
@@ -353,7 +362,7 @@ void main()
 			{
 				if(motor.power > 0)
 				{
-					motor.power -= 16;
+					motor.power -= MAX_POWER;
 				}
 				TRACE
 				print_number(&uart, motor.power);
