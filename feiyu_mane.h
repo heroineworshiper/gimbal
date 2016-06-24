@@ -3,8 +3,8 @@
 
 
 
-// pin 10/ADC12_IN0 -> RC filter connected to LMV358 OUT A
-// pin 11/ADC12_IN1 -> RC filter connected to LMV358 OUT B
+// pin 10/ADC12_IN0 -> RC filter connected to LMV358 OUT A. 1612 when off
+// pin 11/ADC12_IN1 -> RC filter connected to LMV358 OUT B. 1639 when off
 // pin 12/ADC12_IN2 -> voltage divider between battery V+ & GND to sense battery voltage
 // pin 14/ADC12_IN4 -> hall chip select
 // pin 15/ADC12_IN5 -> hall clock/561 khz
@@ -40,6 +40,7 @@
 
 // mane anticogging table
 //#define CALIBRATE_MOTOR
+#define TEST_MOTOR
 
 /* Definition for USARTx Pins */
 #define DEBUG_UART						USART1

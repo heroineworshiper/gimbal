@@ -16,6 +16,8 @@ ADC_ChannelConfTypeDef   sConfig;
 #define ADC_PIN1 1
 #define ADC_PIN2 2
 #define ADC_GPIO GPIOA
+#define OVERSAMPLE 1024
+
 
 void get_adc0();
 
@@ -40,31 +42,44 @@ void get_adc1()
 {
 	if(HAL_IS_BIT_SET(AdcHandle2.Instance->SR, ADC_FLAG_EOC))
 	{
+		__HAL_ADC_CLEAR_FLAG(&AdcHandle2, ADC_FLAG_EOC);
+		/* Start ADC conversion on regular group with SW start */
+    	SET_BIT(AdcHandle2.Instance->CR2, (ADC_CR2_SWSTART | ADC_CR2_EXTTRIG));
+
 		adc.current2 += AdcHandle2.Instance->DR;
 		adc.current2_count++;
-		if(adc.current2_count > 65536)
+		if(adc.current2_count > OVERSAMPLE)
 		{
 			adc.current2_avg = adc.current2 / adc.current2_count;
 
-/*
- * TRACE
- * print_number(&uart, adc.current1_avg);
- * print_number(&uart, adc.current2_avg);
- * print_number(&uart, adc.current1_avg + adc.current2_avg);
- */
+
+
+
+
+#ifdef TEST_MOTOR
+//motor.pwm1++;
+
+write_motor2();
+TRACE
+//print_fixed(&uart, motor.phase);
+print_number(&uart, adc.current1_avg);
+print_number(&uart, adc.current2_avg);
+print_number(&uart, motor.pwm1);
+print_number(&uart, motor.pwm2);
+print_number(&uart, motor.pwm3);
+motor.phase += FRACTION;
+//write_motor();
+#endif
+
+
+
 
 			adc.current2_count = 0;
 			adc.current2 = 0;
 		}
-
-		__HAL_ADC_CLEAR_FLAG(&AdcHandle2, ADC_FLAG_EOC);
-		/* Start ADC conversion on regular group with SW start */
-    	SET_BIT(AdcHandle2.Instance->CR2, (ADC_CR2_SWSTART | ADC_CR2_EXTTRIG));
 		adc.current_function = get_adc0;
-
 	}
 
-	adc.current_function = get_adc0;
 }
 
 #endif // 0
@@ -81,20 +96,16 @@ void get_adc0()
     	SET_BIT(AdcHandle1.Instance->CR2, (ADC_CR2_SWSTART | ADC_CR2_EXTTRIG));
 
 		adc.current1_count++;
-		if(adc.current1_count > 65536)
+		if(adc.current1_count > OVERSAMPLE)
 		{
-			adc.current1_avg = (adc.current1) / adc.current1_count;
-//TRACE
-//print_number(&uart, adc.battery_avg);
-//print_number(&uart, motor.deadband);
-//			update_deadband();
+			adc.current1_avg = adc.current1 / adc.current1_count;
 			adc.current1_count = 0;
 			adc.current1 = 0;
 		}
 
+		adc.current_function = get_adc1;
 	}
 
-	adc.current_function = get_adc1;
 }
 
 

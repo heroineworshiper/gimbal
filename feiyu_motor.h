@@ -11,13 +11,8 @@ typedef struct
 	int phase;
 // 0-MAX_POWER
 	int power;
-// target angle in hall reading
-	int hall;
-// change in hall error
-	derivative_t derror;
-	int derror_prev[4];
-	mypid_t pid;
-	
+// debug values
+	int pwm1, pwm2, pwm3;
 } motor_t;
 
 #define MAX_POWER 1024

@@ -262,6 +262,7 @@ void main()
 	while(1)
 	{
 		handle_uart();
+
 #ifdef BOARD2
 // DEBUG
 //		handle_imu();
@@ -303,17 +304,17 @@ void main()
 
 // DEBUG
 #ifndef CALIBRATE_MOTOR
-		if(mane_time - test_time > fei.test_period)
-		{
+//		if(mane_time - test_time > fei.test_period)
+//		{
 //			TRACE
 //			print_number(&uart, hall.value);
 //			print_number(&uart, motor.phase / FRACTION);
 
-			test_time = mane_time;
-			motor.phase += fei.test_step * FRACTION;
+//			test_time = mane_time;
+//			motor.phase += fei.test_step * FRACTION;
 //			motor.hall += fei.test_step;
-			write_motor();
-		}
+//			write_motor();
+//		}
 #else
 		motor_test();
 #endif 
@@ -330,8 +331,8 @@ void main()
 				motor.phase += 1 * FRACTION;
 				write_motor();
 //				motor.hall += 10;
-//				TRACE
-//				print_number(&uart, motor.phase / FRACTION);
+				TRACE
+				print_number(&uart, motor.phase / FRACTION);
 //				print_number(&uart, motor.hall);
 			}
 			else
@@ -342,8 +343,8 @@ void main()
 				motor.phase -= 1 * FRACTION;
 				write_motor();
 //				motor.hall -= 10;
-//				TRACE
-//				print_number(&uart, motor.phase / FRACTION);
+				TRACE
+				print_number(&uart, motor.phase / FRACTION);
 //				print_number(&uart, motor.hall);
 			}
 			else
