@@ -205,7 +205,12 @@ void main()
 // must reset all the variables even though the bootloader configured the clock
 	HAL_Init();
 	SystemClock_Config();
-	init_uart();
+
+#if defined(BOARD1) || defined(BOARD2)
+	init_uart(FAST_BAUD, FAST_BAUD);
+#else
+	init_uart(SLOW_BAUD, FAST_BAUD);
+#endif
 
 // re-enable the mane interrupt
 	__enable_irq();
@@ -315,9 +320,12 @@ void main()
 //			motor.hall += fei.test_step;
 //			write_motor();
 //		}
-#else
-		motor_test();
 #endif 
+
+#ifdef CALIBRATE_MOTOR
+		motor_test();
+#endif
+
 
 
 // DEBUG
@@ -331,9 +339,12 @@ void main()
 				motor.phase += 1 * FRACTION;
 				write_motor();
 //				motor.hall += 10;
-				TRACE
-				print_number(&uart, motor.phase / FRACTION);
+//				TRACE
+//				print_text(&uart, "phase=");
+//				print_number(&uart, motor.phase / FRACTION);
 //				print_number(&uart, motor.hall);
+//				motor.pwm2 += 10;
+//				write_motor2();
 			}
 			else
 			if(c == 'z')
@@ -343,31 +354,44 @@ void main()
 				motor.phase -= 1 * FRACTION;
 				write_motor();
 //				motor.hall -= 10;
-				TRACE
-				print_number(&uart, motor.phase / FRACTION);
+//				TRACE
+//				print_text(&uart, "phase=");
+//				print_number(&uart, motor.phase / FRACTION);
 //				print_number(&uart, motor.hall);
+//				motor.pwm2 -= 10;
+//				write_motor2();
 			}
 			else
 			if(c == 'u')
 			{
-				if(motor.power < MAX_POWER)
-				{
-					motor.power += MAX_POWER;
-				}
-				TRACE
-				print_number(&uart, motor.power);
-				write_motor();
+//				motor.pwm1 += 10;
+//				write_motor2();
+//				TRACE
+//				print_text(&uart, "pwm1=");
+//				print_number(&uart, motor.pwm1);
+//				if(motor.power < MAX_POWER)
+//				{
+//					motor.power += 1;
+//				}
+//				print_text(&uart, "power=");
+//				print_number(&uart, motor.power);
+//				write_motor();
 			}
 			else
 			if(c == 'n')
 			{
-				if(motor.power > 0)
-				{
-					motor.power -= MAX_POWER;
-				}
-				TRACE
-				print_number(&uart, motor.power);
-				write_motor();
+//				motor.pwm1 -= 10;
+//				write_motor2();
+//				TRACE
+//				print_text(&uart, "pwm1=");
+//				print_number(&uart, motor.pwm1);
+//				if(motor.power > 0)
+//				{
+//					motor.power -= 1;
+//				}
+//				print_text(&uart, "power=");
+//				print_number(&uart, motor.power);
+//				write_motor();
 			}
 		}
 	}

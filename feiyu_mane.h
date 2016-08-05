@@ -32,15 +32,16 @@
 // board 2 needs a bootloader without UART3.  
 // A better way is to only enable UART3 after passthrough mode is enabled.
 // yaw board
-//#define BOARD0
+#define BOARD0
 // roll board
 //#define BOARD1
 // pitch board
-#define BOARD2
+//#define BOARD2
 
 // mane anticogging table
-//#define CALIBRATE_MOTOR
-#define TEST_MOTOR
+#define CALIBRATE_MOTOR
+#define ANTICOGGING
+//#define TEST_MOTOR
 
 /* Definition for USARTx Pins */
 #define DEBUG_UART						USART1
@@ -54,6 +55,9 @@
 #define PASS_UART_RX_PIN                11
 #define PASS_UART_TX_GPIO               GPIOB
 #define PASS_UART_RX_GPIO               GPIOB
+
+#define SLOW_BAUD 115200
+#define FAST_BAUD 1000000
 
 
 #define BLUE_LED_PIN 9

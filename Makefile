@@ -1,3 +1,4 @@
+GXX := g++
 GCC_ARM := /opt/arm/bin/arm-elf-gcc
 OBJCOPY := /opt/arm/bin/arm-elf-objcopy
 ARM_CFLAGS := -O2 -c -I. -Irtlwifi -Iarm -Istm32f4 -fno-builtin -mthumb -mcpu=cortex-m4 -mlittle-endian -ffreestanding 
@@ -109,6 +110,75 @@ FEIYU_COMMON_OBJS := \
 #	stm32f1xx_hal_tim.o \
 
 
+JPEG_OBJS := \
+	jpeg/cdjpeg.o \
+	jpeg/jcapimin.o \
+	jpeg/jcapistd.o \
+	jpeg/jccoefct.o \
+	jpeg/jccolor.o \
+	jpeg/jcdctmgr.o \
+	jpeg/jchuff.o \
+	jpeg/jcinit.o \
+	jpeg/jcmainct.o \
+	jpeg/jcmarker.o \
+	jpeg/jcmaster.o \
+	jpeg/jcomapi.o \
+	jpeg/jcparam.o \
+	jpeg/jcphuff.o \
+	jpeg/jcprepct.o \
+	jpeg/jcsample.o \
+	jpeg/jctrans.o \
+	jpeg/jdapimin.o \
+	jpeg/jdapistd.o \
+	jpeg/jdatadst.o \
+	jpeg/jdatasrc.o \
+	jpeg/jdcoefct.o \
+	jpeg/jdcolor.o \
+	jpeg/jddctmgr.o \
+	jpeg/jdhuff.o \
+	jpeg/jdinput.o \
+	jpeg/jdmainct.o \
+	jpeg/jdmarker.o \
+	jpeg/jdmaster.o \
+	jpeg/jdmerge.o \
+	jpeg/jdphuff.o \
+	jpeg/jdpostct.o \
+	jpeg/jdsample.o \
+	jpeg/jdtrans.o \
+	jpeg/jerror.o \
+	jpeg/jfdctflt.o \
+	jpeg/jfdctfst.o \
+	jpeg/jfdctint.o \
+	jpeg/jidctflt.o \
+	jpeg/jidctfst.o \
+	jpeg/jidctint.o \
+	jpeg/jidctred.o \
+	jpeg/jmemmgr.o \
+	jpeg/jmemnobs.o \
+	jpeg/jquant1.o \
+	jpeg/jquant2.o \
+	jpeg/jutils.o \
+	jpeg/rdbmp.o \
+	jpeg/rdcolmap.o \
+	jpeg/rdgif.o \
+	jpeg/rdppm.o \
+	jpeg/rdrle.o \
+	jpeg/rdswitch.o \
+	jpeg/rdtarga.o \
+	jpeg/transupp.o \
+	jpeg/wrbmp.o \
+	jpeg/wrgif.o \
+	jpeg/wrppm.o \
+	jpeg/wrrle.o \
+	jpeg/wrtarga.o
+
+
+
+CAM_OBJS := \
+	cam.o \
+	motion.o \
+	$(JPEG_OBJS)
+
 #all: feiyu_bootloader.bin tables gimbal.bin bootloader.bin imu.hex
 all: feiyu_bootloader.bin feiyu_mane.bin feiyu_program
 
@@ -172,6 +242,16 @@ bootloader.bin: $(ARM_BOOTLOADER_OBJS)
 bootloader.o stm32f4/startup_boot.o stm32f4/system_stm32f4xx.o: 
 	$(GCC_ARM) $(ARM_CFLAGS) -c $< -o $*.o
 
+cam_lidar: cam_lidar.c
+	g++ -g cam_lidar.c -o cam_lidar $(JPEG_OBJS) -lm -lX11 -lXext -lpthread -Ijpeg
+
+cam: $(CAM_OBJS)
+	$(GXX) -DX86 -O2 -g -o cam $(CAM_OBJS) -lpthread -lm
+
+$(CAM_OBJS):
+	$(GXX) -O2 -g -c $*.c -o $*.o -DX86 -Ijpeg
+
+
 $(ARM_OBJS):
 	$(GCC_ARM) $(ARM_CFLAGS) -c $< -o $*.o
 
@@ -179,7 +259,7 @@ $(FEIYU_OBJS) $(FEIYU_MANE_OBJS):
 	$(GCC_FEIYU) $(FEIYU_CFLAGS) -c $< -o $*.o
 
 clean:
-	rm -f *.o *.elf *.bin *.hex stm32f4/*.o 
+	rm -f cam_lidar *.o *.elf *.bin *.hex stm32f4/*.o 
 
 
 # Feiyu objs
@@ -253,6 +333,8 @@ linux.o:		  linux.c
 bootloader.o:		  bootloader.c
 stm32f4/startup_boot.o: stm32f4/startup_boot.s
 stm32f4/system_stm32f4xx.o: stm32f4/system_stm32f4xx.c
+cam.o: cam.c
+motion.o: motion.c
 
 
 

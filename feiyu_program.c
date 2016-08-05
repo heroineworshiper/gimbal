@@ -19,6 +19,7 @@
 #define BAUD B115200
 #define CAPTURE_FILE "terminal.cap"
 #define PAGE_SIZE 1024
+//#define LOCAL_ECHO
 
 FILE *capture = 0;
 
@@ -85,7 +86,7 @@ void print_char(unsigned char c)
 {
 	fputc(c, capture);
 	fflush(capture);
-	
+
 	printf("%c", c);
 	fflush(stdout);
 }
@@ -355,12 +356,14 @@ int main(int argc, char *argv[])
 			for(i = 0; i < bytes; i++)
 			{
 				char c = test_buffer[i];
+#ifdef LOCAL_ECHO
 				if(c < 0xa)
 					printf("0x%02x ", c);
 				else
 					printf("%c", c);
 
 				fflush(stdout);
+#endif
 
 				if(c == 0xa)
 				{

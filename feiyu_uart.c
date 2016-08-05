@@ -21,10 +21,10 @@ const char hex_table[] =
 };
 
 
-void init_uart()
+void init_uart(int baud1, int baud2)
 {
  	UartHandle.Instance        = DEBUG_UART;
-	UartHandle.Init.BaudRate   = 115200;
+	UartHandle.Init.BaudRate   = baud1;
 	UartHandle.Init.WordLength = UART_WORDLENGTH_8B;
 	UartHandle.Init.StopBits   = UART_STOPBITS_1;
 	UartHandle.Init.Parity     = UART_PARITY_NONE;
@@ -40,7 +40,7 @@ void init_uart()
 #ifndef BOARD2
 
 	UartHandle2.Instance        = PASS_UART;
-	UartHandle2.Init.BaudRate   = 115200;
+	UartHandle2.Init.BaudRate   = baud2;
 	UartHandle2.Init.WordLength = UART_WORDLENGTH_8B;
 	UartHandle2.Init.StopBits   = UART_STOPBITS_1;
 	UartHandle2.Init.Parity     = UART_PARITY_NONE;

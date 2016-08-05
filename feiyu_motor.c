@@ -82,6 +82,135 @@ void print_phases()
 	while(x >= 360 * FRACTION) x -= 360 * FRACTION;
 #define CALCULATE_WAVEFORM(x) ((uint32_t)motor_table[x] * (max_sin - min_sin) / 65535 + min_sin)
 
+#ifdef ANTICOGGING
+
+
+#ifdef BOARD2
+const char index_offset[] =
+{
+	0, 3, 14, 14, 14, 14, 14, 14, 15, 15, 15, 16, 16, 16, 17, 17, 
+	17, 17, 17, 17, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 
+	18, 18, 18, 18, 18, 17, 17, 16, 16, 15, 15, 14, 13, 13, 12, 12, 
+	12, 12, 12, 11, 11, 11, 11, 10, 10, 10, 9, 9, 9, 8, 8, 7, 
+	7, 6, 6, 5, 6, 15, 16, 16, 16, 15, 15, 15, 14, 15, 24, 24, 
+	24, 24, 23, 23, 23, 22, 22, 22, 21, 21, 21, 20, 20, 20, 20, 19, 
+	19, 19, 18, 18, 18, 17, 17, 17, 16, 16, 16, 15, 15, 14, 14, 13, 
+	13, 12, 12, 11, 10, 10, 9, 9, 8, 7, 7, 7, 7, 6, 6, 6, 
+	5, 5, 4, 3, 3, 2, 1, 1, 0, -1, -2, -2, -3, -4, -4, -5, 
+	-6, -6, -7, -8, -8, -9, -9, -10, -11, -11, -12, -13, -14, -14, -15, -16, 
+	-17, -18, -18, -19, -20, -21, -22, -22, -23, -24, -25, -26, -26, -27, -28, -28, 
+	-29, -29, -30, -30, -31, -31, -31, -31, -31, -32, -32, -32, -31, -21, -21, -21, 
+	-22, -22, -22, -21, -10, -10, -10, -10, -10, -10, -10, -10, -11, -11, -11, -11, 
+	-11, -11, -11, -10, -10, -11, -11, -11, -11, -11, -11, -11, -11, -11, -12, -12, 
+	-12, -12, -12, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, -11, 
+	-12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, -12, 
+	-10, 0, 1, 2, 9, 14, 14, 14, 15, 15, 15, 15, 16, 16, 16, 17, 
+	17, 17, 17, 17, 17, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 
+	18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 17, 17, 17, 16, 16, 16, 
+	15, 15, 15, 14, 14, 13, 13, 12, 12, 11, 11, 11, 16, 21, 21, 20, 
+	20, 20, 21, 27, 32, 32, 32, 31, 31, 30, 29, 29, 28, 28, 27, 26, 
+	26, 25, 24, 23, 23, 22, 21, 21, 20, 20, 19, 19, 18, 18, 17, 17, 
+	16, 16, 16, 16, 15, 15, 15, 14, 14, 13, 13, 12, 12, 11, 11, 10, 
+	10, 9, 8, 8, 7, 7, 6, 6, 5, 5, 5, 4, 4, 3, 3, 3, 
+	2, 2, 1, 1, 0, 0, -1, -1, -2, -2, -3, -3, -4, -5, -5, -6, 
+	-6, -7, -8, -8, -9, -9, -9, -10, -10, -11, -11, -12, -12, -13, -13, -14, 
+	-15, -15, -16, -16, -17, -17, -18, -19, -19, -20, -20, -21, -21, -21, -22, -22, 
+	-23, -23, -24, -25, -25, -26, -26, -27, -28, -28, -29, -29, -30, -30, -30, -20, 
+	-19, -20, -20, -20, -20, -20, -13, -11, -11, -11, -12, -12, -13, -14, -14, -14, 
+	-14, -14, -14, -14, -14, -15, -15, -15, -15, -15, -15, -16, -15, -15, -15, -15, 
+	-15, -15, -15, -15, -15, -15, -15, -15, -15, -15, -15, -15, -15, -15, -15, -15, 
+	-15, -15, -14, -14, -14, -14, -14, -13, -13, -13, -13, -13, -12, -12, -4, -1
+};
+#endif // BOARD2
+
+#ifdef BOARD1
+
+const char index_offset[] =
+{
+	0, 0, 8, 13, 14, 14, 13, 13, 13, 12, 12, 11, 11, 11, 10, 10, 
+	10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 10, 10, 10, 9, 9, 8, 
+	8, 8, 8, 8, 8, 8, 7, 7, 7, 7, 7, 6, 6, 6, 5, 5, 
+	4, 4, 3, 3, 2, 2, 1, 1, 1, 0, 0, 0, -1, -1, -1, -2, 
+	-2, -2, -3, -3, -3, -4, -4, -5, -5, -5, -6, -6, -7, -7, -7, -8, 
+	-8, -8, -1, 2, 5, 5, 5, 5, 5, 14, 6, 15, 15, 15, 15, 14, 
+	14, 13, 13, 12, 12, 12, 11, 10, 10, 10, 9, 9, 8, 8, 8, 7, 
+	7, 7, 6, 6, 6, 6, 5, 5, 5, 4, 4, 3, 3, 3, 2, 2, 
+	1, 1, 1, 0, 0, -1, -1, -1, -2, -2, -3, -3, -3, -4, -4, -4, 
+	-5, -5, -6, -6, -6, -7, -7, -7, -8, -8, -9, -9, -9, -10, -10, -10, 
+	-11, -11, -12, -12, -12, -13, -13, -14, -14, -14, -14, -6, -13, -3, -3, -2, 
+	-2, 6, 10, 10, 10, 10, 10, 9, 9, 8, 8, 7, 7, 6, 6, 5, 
+	5, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 1, 1, 
+	1, 0, 0, -1, -2, -2, -3, -3, -4, -4, -4, -5, -5, -5, -5, -5, 
+	-5, -5, -5, -5, -5, -6, -6, -6, -6, -7, -7, -7, -8, -8, -8, -8, 
+	-8, -8, -8, -8, -8, -8, -8, -8, -9, -9, -9, -9, -9, -9, 4, 5, 
+	5, 6, 6, 16, 16, 16, 16, 16, 15, 15, 15, 14, 14, 13, 13, 13, 
+	12, 12, 11, 11, 11, 11, 11, 11, 10, 10, 10, 10, 10, 9, 9, 9, 
+	8, 8, 7, 7, 6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 2, 1, 
+	1, 0, 0, -1, -1, -1, -2, -2, -2, -2, -2, -2, -2, -2, -3, -3, 
+	-3, -3, -4, -4, -4, -5, -5, -6, -6, -6, -6, -7, -7, -7, 0, 2, 
+	4, 5, 5, 5, 6, 17, 17, 17, 17, 17, 17, 16, 16, 15, 15, 14, 
+	13, 13, 12, 12, 11, 11, 10, 10, 9, 9, 8, 8, 8, 8, 7, 7, 
+	7, 7, 7, 7, 7, 6, 6, 5, 5, 4, 4, 3, 3, 3, 2, 2, 
+	1, 1, 0, 0, -1, -1, -1, -1, -1, -2, -2, -2, -2, -2, -3, -3, 
+	-3, -4, -4, -5, -5, -6, -6, -7, -7, -8, -8, -9, -9, -9, -10, -10, 
+	-11, -11, -11, -11, -11, -11, -12, -12, -12, -13, -13, -13, -14, -14, -5, -4, 
+	-1, 0, 0, 0, 1, 9, 9, 9, 9, 9, 8, 8, 7, 7, 6, 6, 
+	5, 5, 4, 4, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 
+	2, 1, 1, 0, 0, -1, -1, -1, -2, -2, -3, -3, -3, -3, -3, -4, 
+	-4, -4, -4, -4, -4, -5, -5, -5, -6, -6, -7, -7, -7, -8, -8, -9, 
+	-9, -10, -10, -10, -10, -11, -11, -11, -11, -11, -11, -12, -12, -12, -8, -11
+};
+
+
+#endif // BOARD1
+
+
+#ifdef BOARD0
+
+
+const char index_offset[] =
+{
+	0, 1, 2, 7, 15, 15, 15, 15, 15, 15, 15, 15, 14, 14, 14, 14, 
+	14, 14, 15, 15, 16, 16, 17, 17, 17, 17, 17, 17, 16, 16, 16, 15, 
+	15, 15, 14, 14, 14, 13, 13, 13, 13, 13, 13, 13, 13, 13, 14, 14, 
+	15, 15, 15, 15, 15, 14, 14, 14, 14, 13, 13, 13, 12, 12, 12, 19, 
+	19, 19, 19, 26, 26, 26, 27, 28, 37, 37, 36, 36, 35, 35, 34, 34, 
+	33, 33, 32, 31, 31, 30, 29, 29, 28, 27, 27, 26, 25, 25, 24, 23, 
+	22, 22, 21, 20, 20, 19, 18, 17, 17, 16, 15, 14, 14, 13, 12, 12, 
+	11, 10, 9, 9, 8, 7, 7, 6, 5, 4, 4, 3, 2, 2, 1, 0, 
+	0, -1, -2, -2, -3, -4, -4, -5, -6, -6, -7, -7, -8, -9, -9, -10, 
+	-10, -11, -11, -12, -12, -13, -13, -14, -14, -15, -15, -16, -16, -17, -17, -17, 
+	-18, -18, -19, -19, -20, -20, -21, -21, -22, -22, -23, -23, -24, -24, -25, -25, 
+	-26, -26, -27, -27, -28, -28, -29, -29, -30, -30, -31, -31, -31, -31, -32, -31, 
+	-32, -18, -18, -18, -9, -9, -7, -7, -7, -8, -8, -8, -9, -9, -10, -10, 
+	-11, -12, -12, -13, -13, -14, -15, -15, -16, -16, -17, -17, -18, -19, -19, -19, 
+	-20, -20, -20, -20, -15, -14, -14, -14, -14, -14, -15, -15, -15, -16, -16, -17, 
+	-17, -17, -18, -18, -18, -19, -19, -19, -19, -17, -13, -12, -12, -12, -12, -12, 
+	-12, 0, 1, 0, 2, 8, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 
+	16, 16, 17, 18, 19, 19, 20, 20, 20, 20, 20, 20, 19, 19, 19, 19, 
+	18, 18, 18, 18, 17, 17, 17, 17, 16, 16, 16, 15, 15, 15, 15, 14, 
+	14, 14, 14, 13, 13, 13, 13, 12, 12, 12, 12, 11, 11, 11, 11, 10, 
+	10, 20, 20, 22, 22, 22, 22, 22, 23, 24, 31, 31, 31, 30, 30, 30, 
+	29, 29, 28, 28, 27, 26, 26, 25, 24, 24, 23, 22, 22, 21, 20, 20, 
+	19, 18, 18, 17, 16, 16, 15, 14, 14, 13, 12, 12, 11, 11, 10, 10, 
+	9, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10, 9, 9, 9, 8, 8, 
+	7, 6, 6, 5, 4, 4, 3, 2, 2, 1, 0, 0, -1, -2, -3, -3, 
+	-4, -5, -6, -6, -7, -8, -9, -9, -10, -11, -12, -13, -13, -14, -15, -16, 
+	-17, -17, -18, -19, -20, -21, -21, -22, -23, -24, -25, -25, -26, -27, -28, -29, 
+	-29, -30, -31, -32, -33, -33, -34, -35, -36, -36, -37, -38, -25, -25, -24, -24, 
+	-24, -24, -23, -23, -17, -15, -8, -7, -7, -7, -7, -7, -8, -8, -8, -9, 
+	-9, -10, -10, -11, -11, -11, -12, -12, -13, -13, -13, -13, -13, -13, -13, -12, 
+	-11, -11, -11, -10, -10, -11, -11, -11, -11, -12, -12, -12, -13, -13, -13, -13, 
+	-14, -14, -14, -15, -15, -15, -15, -15, -15, -15, -15, -14, -14, -13, -13, -12
+};
+
+
+
+#endif // BOARD0
+
+#endif
+
+
 // set the PWM values for the phase
 void write_motor()
 {
@@ -93,21 +222,36 @@ void write_motor()
 	int max_sin = MAX_SIN - (MAX_POWER - motor.power);
 	int min_sin = MIN_SIN + (MAX_POWER - motor.power);
 	int index1 = (motor.phase * WAVEFORM_SIZE / 360 / FRACTION) % WAVEFORM_SIZE;
+
+#ifdef ANTICOGGING
+	int offset = index_offset[index1];
+	if(offset >= 128)
+	{
+		offset -= 256;
+	}
+	index1 += offset;
+	if(index1 < 0)
+	{
+		index1 += WAVEFORM_SIZE;
+	}
+	index1 %= WAVEFORM_SIZE;
+#endif
+
+
+
 	int index2 = (index1 + 120 * WAVEFORM_SIZE / 360) % WAVEFORM_SIZE;
 	int index3 = (index1 + 240 * WAVEFORM_SIZE / 360) % WAVEFORM_SIZE;
 
 
-#ifdef TEST_MOTOR
-// short 1 MOSFET
-	motor.pwm1 = TimHandle.Instance->CCR1 = MIN_SIN;
-	motor.pwm2 = TimHandle.Instance->CCR2 = MAX_SIN / 2;
-	motor.pwm3 = TimHandle.Instance->CCR3 = MIN_SIN;
-#else
-
+//#ifdef TEST_MOTOR
+//	motor.pwm1 = TimHandle.Instance->CCR1 = 1;
+//	motor.pwm2 = TimHandle.Instance->CCR2 = PERIOD / 2;
+//	motor.pwm3 = TimHandle.Instance->CCR3 = 0;
+//#else
 	motor.pwm1 = TimHandle.Instance->CCR1 = CALCULATE_WAVEFORM(index1);
 	motor.pwm2 = TimHandle.Instance->CCR2 = CALCULATE_WAVEFORM(index2);
 	motor.pwm3 = TimHandle.Instance->CCR3 = CALCULATE_WAVEFORM(index3);
-#endif
+//#endif
 
 
 // print_number(&uart, TimHandle.Instance->CCR1);
@@ -124,14 +268,155 @@ void write_motor()
 }
 
 #ifdef TEST_MOTOR
+#define KNEE 1600
+#define PWM2 930
+#define PWM3 1880
 void write_motor2()
 {
-	TimHandle.Instance->CCR1 = motor.pwm1;
+	int translated = 0;
+	if(motor.pwm1 < KNEE)
+	{
+		translated = motor.pwm1 * PWM2 / KNEE;
+	}
+	else
+	{
+		translated = (motor.pwm1 - KNEE) * (1800 - PWM2) / (PWM3 - KNEE) + PWM2;
+	}
+
+
+
+	TimHandle.Instance->CCR1 = translated;
+//	TimHandle.Instance->CCR1 = motor.pwm1;
 	TimHandle.Instance->CCR2 = motor.pwm2;
 	TimHandle.Instance->CCR3 = motor.pwm3;
 }
+
+int get_pwm1()
+{
+	return TimHandle.Instance->CCR1;
+}
+
 #endif
 
+
+#ifdef CALIBRATE_MOTOR
+
+// develop the anti cogging table
+void motor_test()
+{
+	static int test_time = 0;
+	static int phase_to_hall[N_SIN] = { 0 };
+	static int phase_index = 0;
+	static int iterations = 0;
+	static int done = 0;
+	static int hall_offset = -1;
+	
+	if(!done && mane_time > 5 * HZ && 
+		mane_time - test_time > /* HZ / 2 */ HZ / 100)
+	{
+// store hall value from the previous phase index
+		test_time = mane_time;
+		if(hall_offset < 0)
+		{
+			hall_offset = hall.value;
+		}
+		
+		phase_to_hall[phase_index] += hall.value - hall_offset;
+		
+		TRACE
+		print_number(&uart, hall.value - hall_offset);
+		print_fixed(&uart, phase_index * 360 * FRACTION / N_SIN);
+		print_lf(&uart);
+
+		phase_index++;
+		if(phase_index >= N_SIN)
+		{
+			iterations++;
+			hall_offset = -1;
+			phase_index = 0;
+		}
+
+// set new motor phase
+		motor.phase = phase_index * 360 * FRACTION / N_SIN;
+		write_motor();
+// done
+		if(iterations >= 4)
+		{
+			done = 1;
+
+
+			int i;
+			print_text(&uart, "\n\nconst char index_offset[] =\n{\n\t");
+
+			for(i = 0; i < N_SIN; i++)
+			{
+//				TRACE
+//				print_number(&uart, phase_to_hall[i] / iterations);
+//				print_number(&uart, i * 360 / N_SIN);
+
+// desired encoder value
+				int want_hall = i * 
+					(phase_to_hall[N_SIN - 1] - phase_to_hall[0]) /
+					N_SIN + 
+					phase_to_hall[0];
+
+// required phase from measuring
+				int j;
+				int best_j;
+				int best_diff;
+				for(j = 0; j < N_SIN; j++)
+				{
+					int current_diff = ABS(phase_to_hall[j] - want_hall);
+					if(j == 0 || best_diff > current_diff)
+					{
+						best_j = j;
+						best_diff = current_diff;
+					}
+				}
+
+#if 0
+				print_number(&uart, want_hall / iterations);
+// convert to degrees
+				print_number(&uart, best_j * 360 / N_SIN);
+				print_lf(&uart);
+#endif
+
+#if 1
+#ifdef ANTICOGGING
+				int offset = index_offset[i];
+				if(offset >= 128)
+				{
+					offset -= 256;
+				}
+				print_number_nospace(&uart, offset + (best_j - i));
+#else
+				print_number_nospace(&uart, best_j - i);
+#endif
+				
+				if(i < N_SIN - 1)
+				{
+					print_text(&uart, ", ");
+				}
+
+				if(i < N_SIN - 1 &&
+					!((i + 1) % 16))
+				{
+					print_text(&uart, "\n\t");
+				}
+#endif
+
+				flush_uart(&uart);
+			}
+
+			print_text(&uart, "\n};\n");
+ 		}
+	}
+	
+	
+	
+	
+}
+#endif // CALIBRATE_MOTOR
 
 
 
@@ -141,7 +426,7 @@ void init_motor()
 {
 	motor.deadband = MIN_DEADBAND;
 	motor.phase = 0 * FRACTION;
-	motor.power = MAX_POWER / 2;
+	motor.power = MAX_POWER;
 
 
 
@@ -220,14 +505,28 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef *htim)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 
 
-  GPIO_InitStruct.Pin = (1 << N_MOSFET_PIN1) |
-  	(1 << N_MOSFET_PIN2) |
+//#ifndef TEST_MOTOR
+  GPIO_InitStruct.Pin = 
+  	(1 << N_MOSFET_PIN1) |
+  	(1 << N_MOSFET_PIN2) | 
   	(1 << N_MOSFET_PIN3);
+//#else
+//	GPIO_InitStruct.Pin = 
+//  		(1 << N_MOSFET_PIN1);
+//#endif
+
   HAL_GPIO_Init(N_MOSFET_GPIO, &GPIO_InitStruct);
 
-  GPIO_InitStruct.Pin = (1 << P_MOSFET_PIN1) |
-  	(1 << P_MOSFET_PIN2) |
+//#ifndef TEST_MOTOR
+  GPIO_InitStruct.Pin = 
+  	(1 << P_MOSFET_PIN1) | 
+ 	(1 << P_MOSFET_PIN2) |
   	(1 << P_MOSFET_PIN3);
+//#else
+//  GPIO_InitStruct.Pin = 
+// 	(1 << P_MOSFET_PIN2);
+//#endif
+
   HAL_GPIO_Init(P_MOSFET_GPIO, &GPIO_InitStruct);
 
 }

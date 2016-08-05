@@ -44,6 +44,18 @@ void read_hall_result()
 		SET_PIN(SPI_GPIO, 1 << CS_PIN);
 		hall.value = SpiHandle.Instance->DR;
 
+#ifdef BOARD0
+		if(hall.value > 27000)
+		{
+			hall.value -= 27000;
+		}
+		else
+		{
+			hall.value -= 16384;
+			hall.value += (32767 - 27000);
+		}
+#endif // BOARD0
+
 //TRACE
 //print_number(&uart, hall.value);
 

@@ -16,7 +16,7 @@ ADC_ChannelConfTypeDef   sConfig;
 #define ADC_PIN1 1
 #define ADC_PIN2 2
 #define ADC_GPIO GPIOA
-#define OVERSAMPLE 1024
+#define OVERSAMPLE 2048
 
 
 void get_adc0();
@@ -37,6 +37,7 @@ void get_adc0();
  * 	}
  * }
  */
+int get_pwm1();
 
 void get_adc1()
 {
@@ -57,18 +58,21 @@ void get_adc1()
 
 
 #ifdef TEST_MOTOR
-//motor.pwm1++;
-
-write_motor2();
 TRACE
-//print_fixed(&uart, motor.phase);
+print_fixed(&uart, motor.phase);
+//print_number(&uart, motor.pwm1);
+//print_number(&uart, motor.pwm2);
+//print_number(&uart, get_pwm1());
 print_number(&uart, adc.current1_avg);
 print_number(&uart, adc.current2_avg);
-print_number(&uart, motor.pwm1);
-print_number(&uart, motor.pwm2);
-print_number(&uart, motor.pwm3);
-motor.phase += FRACTION;
+//print_number(&uart, motor.power);
+//motor.phase += FRACTION;
 //write_motor();
+//if(motor.pwm1 < 1800)
+//{
+//	motor.pwm1 += 1;
+//	write_motor2();
+//}
 #endif
 
 

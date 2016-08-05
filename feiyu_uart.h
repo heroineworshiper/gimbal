@@ -38,7 +38,7 @@ extern uart_t uart2;
 #endif
 
 
-void init_uart();
+void init_uart(int baud1, int baud2);
 int sprint_number(unsigned char *dst, int number, int maxlen);
 void print_float(float number);
 void print_fixed(uart_t *uart, int number);

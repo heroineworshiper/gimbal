@@ -240,7 +240,7 @@ void main()
 	init_linux();
 	HAL_Init();
 	SystemClock_Config();
-	init_uart();
+	init_uart(SLOW_BAUD, SLOW_BAUD);
 
 	init_leds();
 	
