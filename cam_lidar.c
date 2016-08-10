@@ -1,4 +1,4 @@
-// camera controller based in LIDAR
+// camera controller based on LIDAR
 
 
 
@@ -27,23 +27,45 @@
 
 void (*lidar_function)(unsigned char);
 #define PACKET_SIZE 22
-#define TOTAL_RANGES 360
+// total readings in a single pass
+#define TOTAL_ANGLES 360
 unsigned char packet[PACKET_SIZE];
-int distance[TOTAL_RANGES];
-int distance_accum[TOTAL_RANGES];
-int distance_count[TOTAL_RANGES];
-int distance_counter;
-int prev_distance[TOTAL_RANGES];
-int diffs[TOTAL_RANGES];
-int have_prev_distances = 0;
+// all values for the latest pass
+int distance[TOTAL_ANGLES];
+// minimum number of passes to make a reference bitmap
+#define PASSES 4
+#define BITMAP_W TOTAL_ANGLES
+#define BITMAP_H 256
+// bitmaps of historic passes
+#define HISTORY_SIZE 256
+unsigned char history[HISTORY_SIZE][BITMAP_W * BITMAP_H];
+// The 1st ranging in the history
+int ref_index = 0;
+// where to store the next ranging
+int current_index = 0;
+// total rangings in the history
+int total_history = 0;
+// bitmaps used for the current test
+unsigned char ref_bitmap[BITMAP_W * BITMAP_H];
+unsigned char current_bitmap[BITMAP_W * BITMAP_H];
+// bitmap pixel ranges
+#define X_THRESHOLD 1
+#define Y_THRESHOLD 16
+// number of dots required to calculate a position
+#define TOTAL_THRESHOLD 32
+
+
+
+// position in accum buffers
+int current_pass = 0;
+int have_ref = 0;
 int packet_size = 0;
-#define PICTURE_W 512
-#define PICTURE_H 512
+#define PICTURE_W 720
+#define PICTURE_H 720
 unsigned char *picture;
 unsigned char **rows;
-// meters
-#define MAX_DISTANCE 4
-#define OVERSAMPLE 4
+// millimeters
+#define MAX_DISTANCE 4000
 int total_errors = 0;
 Display *display;
 Window win;
@@ -64,8 +86,8 @@ int total_frames = 0;
 
 int lidar_fd = -1;
 int servo_fd = -1;
-int min_yaw = 40;
-int max_yaw = 90;
+int min_yaw = 65;
+int max_yaw = 150;
 int pan = 66;
 int tilt = 124;
 
@@ -271,21 +293,39 @@ unsigned char read_char(int fd)
 
 
 
-void draw_dot(int x, int y)
+void draw_dot(int bitmap_x, int bitmap_y, int r, int g, int b)
 {
-	int i, j;
-	for(i = y - 1; i < y + 1; i++)
+// polar
+	int x = (int)(cos((double)bitmap_x * 2 * M_PI / BITMAP_W) * 
+			bitmap_y * PICTURE_W / 2 / BITMAP_H) + 
+		PICTURE_W / 2;
+	int y = (int)(sin((double)bitmap_x * 2 * M_PI / BITMAP_W) * 
+			bitmap_y * PICTURE_H / 2 / BITMAP_H) + 
+		PICTURE_H / 2;
+
+
+// X-Y
+//	int x = bitmap_x * PICTURE_W / TOTAL_ANGLES;
+//	int y = bitmap_y * PICTURE_H / BITMAP_H;
+
+//printf("i=%d distance_accum=%d x=%d y=%d\n", i, distance_accum[i], x, y);
+	if(x >= 0 && x < PICTURE_W && y >= 0 && y < PICTURE_H)
 	{
-		if(i >= 0 && i < PICTURE_H)
+
+		int i, j;
+		for(i = y - 1; i < y + 1; i++)
 		{
-			unsigned char *row = rows[i];
-			for(j = x - 1; j < x + 1; j++)
+			if(i >= 0 && i < PICTURE_H)
 			{
-				if(j >= 0 && j < PICTURE_W)
+				unsigned char *row = rows[i];
+				for(j = x - 1; j < x + 1; j++)
 				{
-					row[j * 3 + 0] = 0;
-					row[j * 3 + 1] = 0;
-					row[j * 3 + 2] = 0;
+					if(j >= 0 && j < PICTURE_W)
+					{
+						row[j * 3 + 0] = r;
+						row[j * 3 + 1] = g;
+						row[j * 3 + 2] = b;
+					}
 				}
 			}
 		}
@@ -293,98 +333,203 @@ void draw_dot(int x, int y)
 }
 
 
-void do_motion()
+void sort_dots(int *dots, int total)
 {
-	int diff[TOTAL_RANGES];
-	bzero(diff, sizeof(diff));
-	bzero(diffs, sizeof(diffs));
-
-	int i, j;
-	if(have_prev_distances)
+	int done = 0;
+	while(!done)
 	{
-		for(i = 0; i < TOTAL_RANGES; i++)
+		done = 1;
+		int i;
+		for(i = 0; i < total - 1; i++)
 		{
-//			if(distance_accum[i] > 0 &&
-//				prev_distance[i] > 0)
+			if(dots[i] > dots[i + 1])
 			{
-				diff[i] = ABS(distance_accum[i] - prev_distance[i]);
-			}
-//			else
-//			{
-//				diff[i] = 0;
-//			}
-		}
-
-// get window of highest diff
-		int window = 8;
-		int max_diff = -1;
-		int max_index = -1;
-		
-		
-//		printf("diffs: ");
-		for(i = window / 2; i < TOTAL_RANGES - window / 2; i++)
-		{
-			int sum = 0;
-			for(j = 0; j < window; j++)
-			{
-				sum += diff[i - window / 2 + j];
-			}
-
-
-//			printf("%d ", sum);
-
-			diffs[i] = sum;
-			if(sum > 0 && sum > max_diff)
-			{
-				max_diff = sum;
-				max_index = i;
+				int temp = dots[i];
+				dots[i] = dots[i + 1];
+				dots[i + 1] = temp;
+				done = 0;
 			}
 		}
-//		printf("\n");
+	}
+}	
 
-//		printf("do_motion %d max_diff=%d max_index=%d\n", 
-//			__LINE__, 
-//			max_diff, 
-//			max_index);
 
-	// must be bigger than minimum
-		int new_angle = -1;
-		max_diff = MAX_DISTANCE * 1000 * window;
-		if(max_diff > 0)
+
+
+// Search for changes
+void compare_frames(int *total_dots,
+	int *median_x,
+	int *median_y)
+{
+	int i, j, k, l;
+	int index = ref_index;
+
+	*total_dots = 0;
+
+// accumulate the history to make the ref bitmap
+	bzero(ref_bitmap, sizeof(ref_bitmap));
+
+	for(i = 0; i < PASSES; i++)
+	{
+		unsigned char *dst = ref_bitmap;
+		unsigned char *src = history[index];
+		for(j = 0; j < BITMAP_H * BITMAP_W; j++)
 		{
-			for(i = 0; i < PICTURE_W; i++)
+			if(*src)
 			{
-				int distance_index = i * TOTAL_RANGES / PICTURE_W;
-				int value = 255 - diffs[distance_index] * 255 / max_diff;
-				
-				for(j = 0; j < PICTURE_H; j++)
-				{
-					unsigned char *dst_ptr = rows[j] + i * 3;
-					if(dst_ptr[0] > 0)
-					{
-						dst_ptr[0] = value;
-						dst_ptr[1] = value;
-					}
-				}
+				*dst = 1;
 			}
-		
-// convert to camera angle
-			new_angle = max_index * (max_yaw - min_yaw) / TOTAL_RANGES + min_yaw;
-			pan = new_angle;
 			
-//			printf("do_motion %d new_angle=%d\n", __LINE__, new_angle);
-
-
-			write_servos(pan, tilt);
+			src++;
+			dst++;
 		}
 		
-		
+		index++;
+		if(index >= HISTORY_SIZE)
+		{
+			index = 0;
+		}
+	}
+
+// accumulate the history to make the current bitmap
+	bzero(current_bitmap, sizeof(current_bitmap));
+	while(index != current_index)
+	{
+		unsigned char *src = history[index];
+		unsigned char *dst = current_bitmap;
+		for(j = 0; j < BITMAP_H * BITMAP_W; j++)
+		{
+			if(*src)
+			{
+				*dst = 1;
+			}
+			
+			src++;
+			dst++;
+		}
+	
+	
+		index++;
+		if(index >= HISTORY_SIZE)
+		{
+			index = 0;
+		}
 	}
 
 
-	memcpy(prev_distance, distance_accum, sizeof(distance_accum));
-	have_prev_distances = 1;
+// list of all the dots found outside the ref
+	int x[BITMAP_W * BITMAP_H];
+	int y[BITMAP_W * BITMAP_H];
 
+	for(j = 0; j < BITMAP_H; j++)
+	{
+		for(i = 0; i < BITMAP_W; i++)
+		{
+// got current dot
+			if(current_bitmap[j * BITMAP_W + i])
+			{
+// search for reference dot within range
+				int got_it = 0;
+				for(k = j - Y_THRESHOLD; 
+					k < j + Y_THRESHOLD && !got_it; 
+					k++)
+				{
+					if(k >= 0 && k < BITMAP_H)
+					{
+						for(l = i - X_THRESHOLD; 
+							l <= i + X_THRESHOLD && !got_it; 
+							l++)
+						{
+							if(l >= 0 && l < BITMAP_W)
+							{
+								if(ref_bitmap[k * TOTAL_ANGLES + l])
+								{
+									got_it = 1;
+								}
+							}
+						}
+					}
+				}
+				
+				if(!got_it)
+				{
+					x[*total_dots] = i;
+					y[*total_dots] = j;
+					(*total_dots)++;
+
+// color a dot not in the ref
+					draw_dot(i, j, 255, 0, 0);
+				}
+			}
+		}
+	}
+
+
+// calculate the median point
+	if(*total_dots >= TOTAL_THRESHOLD)
+	{
+		sort_dots(x, *total_dots);
+		sort_dots(y, *total_dots);
+		*median_x = x[*total_dots / 2];
+		*median_y = y[*total_dots / 2];
+	}
+}
+
+
+
+void do_motion()
+{
+	int total_dots = 0;
+	int median_x = -1;
+	int median_y = -1;
+	int got_it = 0;
+
+// advance ref_index until total_dots doesn't exceed threshold
+	do
+	{
+		compare_frames(&total_dots,
+			&median_x,
+			&median_y);
+		if(total_dots >= TOTAL_THRESHOLD)
+		{
+			got_it = 1;
+			ref_index++;
+			total_history--;
+		}
+	} while(total_dots >= TOTAL_THRESHOLD &&
+		total_history > PASSES);
+
+
+	if(got_it)
+	{
+// point camera at new angle
+		int pan = min_yaw + 
+			(TOTAL_ANGLES - median_x) * 
+			(max_yaw - min_yaw) / 
+			TOTAL_ANGLES;
+		write_servos(pan, tilt);
+printf("do_motion %d median_x=%d pan=%d\n", __LINE__, median_x, pan);
+
+// draw new point
+		int i;
+		for(i = median_y - 10; i < median_y + 10; i++)
+		{
+			draw_dot(median_x,
+				i,
+				0,
+				255,
+				0);
+		}
+
+		for(i = median_x - 10; i < median_x + 10; i++)
+		{
+			draw_dot(i,
+				median_y,
+				0,
+				255,
+				0);
+		}
+	}
 }
 
 
@@ -397,7 +542,7 @@ void get_packet(unsigned char c)
 		int rpm = (packet[2] | (packet[3] << 8)) / 64;
 		int id = packet[1] - 0xa0;
 		int error[4];
-		int i, j;
+		int i, j, k;
 
 /*
  * 		for(i = 0; i < PACKET_SIZE; i++)
@@ -425,137 +570,118 @@ void get_packet(unsigned char c)
 				}
 			}
 
-// rotation done.  analyze & plot it.
+// Scanning done.  analyze & plot it.
 			if(id == 89)
 			{
-				printf("rpm=%d errors=%d\n", 
-					rpm,
-					total_errors);
+/*
+ * 				printf("rpm=%d errors=%d current_index=%d total_history=%d\n", 
+ * 					rpm,
+ * 					total_errors,
+ * 					current_index,
+ * 					total_history);
+ */
 				total_errors = 0;
 
-// accumulate distance measurements
-				for(i = 0; i < TOTAL_RANGES; i++)
+// create new bitmap from latest pass
+				unsigned char *dst = history[current_index];
+				bzero(dst, BITMAP_W * BITMAP_H);
+				for(i = 0; i < TOTAL_ANGLES; i++)
 				{
-/*
- * 					if(distance[i] > MAX_DISTANCE * 1000)
- * 					{
- * 						distance[i] = MAX_DISTANCE * 1000;
- * 					}
- */
-					
-/*
- * 					if(distance[i] < 0)
- * 					{
- * 						distance[i] = 0;
- * 					}
- */
-					
-					
 					if(distance[i] >= 0 &&
-						distance[i] < MAX_DISTANCE * 1000)
+						distance[i] < MAX_DISTANCE)
 					{
-						distance_accum[i] += distance[i];
-						distance_count[i]++;
+						int distance_scaled = distance[i] * 
+							BITMAP_H / 
+							MAX_DISTANCE;
+						dst[distance_scaled * BITMAP_W + i] = 1;
 					}
 				}
 				
-				distance_counter++;
-				if(distance_counter >= OVERSAMPLE)
+				current_index++;
+				if(current_index >= HISTORY_SIZE)
 				{
+					current_index = 0;
+				}
 
-
-// replace previous image
-					memset(picture, 0xff, PICTURE_W * PICTURE_H * 3);
-// blend with previous image
-/*
- * 					for(i = 0; i < PICTURE_H; i++)
- * 					{
- * 						unsigned char *ptr = rows[i];
- * 						for(j = 0; j < PICTURE_W; j++)
- * 						{
- * 							if(ptr[0] < 0xff)
- * 							{
- * 								int value = ptr[0] + 256 / OVERSAMPLE;
- * 								if(value > 0xff) value = 0xff;
- * 								ptr[0] = value;
- * 								ptr[1] = value;
- * 								ptr[2] = value;
- * 							}
- * 
- * 
- * 							ptr += 3;
- * 						}
- * 					}
- */
-
-
-					for(i = 0; i < TOTAL_RANGES; i++)
+				total_history++;
+// overwrote start of history
+				if(total_history > HISTORY_SIZE)
+				{
+					total_history = HISTORY_SIZE;
+					ref_index++;
+					if(ref_index >= HISTORY_SIZE)
 					{
-						if(distance_count[i] > 0)
+						ref_index = 0;
+					}
+printf("get_packet %d total_history=%d ref_index=%d current_index=%d\n", 
+__LINE__,
+total_history,
+ref_index,
+current_index);
+				}
+
+
+// draw image of all history
+				memset(picture, 0xff, PICTURE_W * PICTURE_H * 3);
+
+				int index = ref_index;
+				for(i = 0; i < total_history; i++)
+				{
+					unsigned char *src = history[index];
+					for(j = 0; j < BITMAP_H; j++)
+					{
+						for(k = 0; k < BITMAP_W; k++)
 						{
-							distance_accum[i] /= distance_count[i];
-		//printf("i=%d distance=%d\n", i, distance_accum[i]);
-
-	// polar
-	/*
-	 * 						int x = (int)(cos(i * 2 * M_PI / TOTAL_RANGES) * 
-	 * 								distance_accum[i] / MAX_DISTANCE) + 
-	 * 							PICTURE_W / 2;
-	 * 						int y = (int)(sin(i * 2 * M_PI / TOTAL_RANGES) * 
-	 * 								distance_accum[i] / MAX_DISTANCE) + 
-	 * 							PICTURE_H / 2;
-	 */
-
-
-	// X-Y
-							int x = i * PICTURE_W / TOTAL_RANGES;
-							int y = distance_accum[i] * 
-								PICTURE_H / 
-								(MAX_DISTANCE * 1000);
-
-		//printf("i=%d distance_accum=%d x=%d y=%d\n", i, distance_accum[i], x, y);
-							if(x >= 0 && x < PICTURE_W && y >= 0 && y < PICTURE_H)
+							if(src[j * BITMAP_W + k])
 							{
-								draw_dot(x, y);
+								draw_dot(k, j, 0, 0, 0);
 							}
 						}
+					} 
+					index++;
+					if(index >= HISTORY_SIZE)
+					{
+						index = 0;
 					}
+				}
 
+// store a new ref
+				if(total_history > PASSES)
+				{
 					do_motion();
+				}
+
+				
 
 // transfer to X bitmap
-					for(i = 0; i < PICTURE_H; i++)
+				for(i = 0; i < PICTURE_H; i++)
+				{
+					unsigned char *dst_ptr = x_bitmap + i * ximage->bytes_per_line;
+					unsigned char *src_ptr = rows[i];
+					for(j = 0; j < PICTURE_W; j++)
 					{
-						unsigned char *dst_ptr = x_bitmap + i * ximage->bytes_per_line;
-						unsigned char *src_ptr = rows[i];
-						for(j = 0; j < PICTURE_W; j++)
-						{
-							*dst_ptr++ = *src_ptr++;
-							*dst_ptr++ = *src_ptr++;
-							*dst_ptr++ = *src_ptr++;
-							*dst_ptr++ = 0;
-						}
+						*dst_ptr++ = src_ptr[2];
+						*dst_ptr++ = src_ptr[1];
+						*dst_ptr++ = src_ptr[0];
+						*dst_ptr++ = 0;
+						src_ptr += 3;
 					}
-
-
-					XPutImage(display, 
-						win, 
-						gc, 
-						ximage, 
-						0, 
-						0, 
-						0, 
-						0, 
-						PICTURE_W, 
-						PICTURE_H);
-					XFlush(display);
-
-					compress_jpeg();
-					
-					bzero(distance_accum, sizeof(distance_accum));
-					bzero(distance_count, sizeof(distance_count));
-					distance_counter = 0;
 				}
+
+
+				XPutImage(display, 
+					win, 
+					gc, 
+					ximage, 
+					0, 
+					0, 
+					0, 
+					0, 
+					PICTURE_W, 
+					PICTURE_H);
+				XFlush(display);
+
+				compress_jpeg();
 			}
 		}
 		
@@ -604,10 +730,8 @@ int init_lidar()
 
 
 	bzero(distance, sizeof(distance));
-	bzero(distance_accum, sizeof(distance_accum));
-	bzero(distance_count, sizeof(distance_count));
-	bzero(prev_distance, sizeof(prev_distance));
-	distance_counter = 0;
+	bzero(history, sizeof(history));
+
 
 	display = XOpenDisplay(NULL);
 	screen = DefaultScreen(display);
