@@ -21,6 +21,42 @@ const char hex_table[] =
 };
 
 
+
+
+void handle_uart()
+{
+	if((DEBUG_UART->SR & USART_FLAG_TC) != 0 &&
+		uart.output_size > 0)
+	{
+		TOGGLE_PIN(RED_LED_GPIO, 1 << RED_LED_PIN);
+		DEBUG_UART->DR = uart.uart_buffer[uart.output_offset2++];
+		if(uart.output_offset2 >= UART_BUFFER_SIZE)
+		{
+			uart.output_offset2 = 0;
+		}
+		uart.output_size--;
+	}
+
+
+#ifndef BOARD2
+	if((PASS_UART->SR & USART_FLAG_TC) != 0 &&
+		uart2.output_size > 0)
+	{
+//print_hex2(&uart, uart2.uart_buffer[uart2.output_offset2]);
+		PASS_UART->DR = uart2.uart_buffer[uart2.output_offset2++];
+		if(uart2.output_offset2 >= UART_BUFFER_SIZE)
+		{
+			uart2.output_offset2 = 0;
+		}
+		uart2.output_size--;
+	}
+#endif // !BOARD2
+}
+
+
+
+
+
 void init_uart(int baud1, int baud2)
 {
  	UartHandle.Instance        = DEBUG_UART;
@@ -120,6 +156,7 @@ void USART1_IRQHandler()
 	{
 		uart.input_buffer[uart.input_offset1] = DEBUG_UART->DR & (uint16_t)0x01FF;
 		uart.input_offset1++;
+		uart.total_in++;
 		if(uart.input_offset1 >= UART_INPUT_SIZE)
 		{
 			uart.input_offset1 = 0;
@@ -137,6 +174,7 @@ void USART3_IRQHandler()
 	{
 		uart2.input_buffer[uart2.input_offset1] = PASS_UART->DR & (uint16_t)0x01FF;
 		uart2.input_offset1++;
+		uart2.total_in++;
 		if(uart2.input_offset1 >= UART_INPUT_SIZE)
 		{
 			uart2.input_offset1 = 0;
@@ -178,30 +216,50 @@ unsigned char read_char()
 void send_uart(uart_t *uart, const unsigned char *text, int size)
 {
 //TOGGLE_PIN(BLUE_LED_GPIO, 1 << BLUE_LED_PIN);
-	if(uart->uart_offset >= uart->uart_size)
+// buffer full
+	if(uart->output_size >= UART_BUFFER_SIZE)
 	{
-		uart->uart_offset = 0;
-		uart->uart_size = 0;
+		return;
+	}
+
+// append to buffer
+	if(uart->output_offset1 >= UART_BUFFER_SIZE)
+	{
+		uart->output_offset1 = 0;
 	}
 
 	int i;
-	for(i = 0; i < size && uart->uart_size < UART_BUFFER_SIZE; i++)
-		uart->uart_buffer[uart->uart_size++] = text[i];
+	int last_char = -1;
+	for(i = 0; i < size && uart->output_size < UART_BUFFER_SIZE; i++)
+	{
+		last_char = text[i];
+		uart->uart_buffer[uart->output_offset1++] = text[i];
+		if(uart->output_offset1 >= UART_BUFFER_SIZE)
+		{
+			uart->output_offset1 = 0;
+		}
+		
+		uart->output_size++;
+	}
 
-	if(uart->uart_buffer[uart->uart_size - 1] == '\n')
+// debugging aid
+	if(last_char == '\n')
+	{
 		uart->need_lf = 0;
+	}
 }
 
 void print_text(uart_t *uart, const char *text)
 {
 	int i = 0;
-	while(text[i] != 0 && i < UART_BUFFER_SIZE) i++;
+// strlen
+	while(text[i] != 0) i++;
 	send_uart(uart, text, i);
 }
 
 void flush_uart(uart_t *uart_ptr)
 {
-	while(uart_ptr->uart_offset < uart_ptr->uart_size) handle_uart();
+	while(uart_ptr->output_size > 0) handle_uart();
 }
 
 

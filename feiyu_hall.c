@@ -21,7 +21,7 @@ void send_hall_command();
 
 void hall_sleep()
 {
-	if(mane_time - hall.time > 0 ||
+	if(mane_time - hall.time >= HZ / 1000 ||
 		mane_time < hall.time)
 	{
 		hall.current_function = send_hall_command;
@@ -43,6 +43,7 @@ void read_hall_result()
 // raise CS
 		SET_PIN(SPI_GPIO, 1 << CS_PIN);
 		hall.value = SpiHandle.Instance->DR;
+		hall.got_readout = 1;
 
 #ifdef BOARD0
 		if(hall.value > 27000)
@@ -56,6 +57,7 @@ void read_hall_result()
 		}
 #endif // BOARD0
 
+		hall.count++;
 //TRACE
 //print_number(&uart, hall.value);
 

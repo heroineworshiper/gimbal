@@ -19,6 +19,7 @@
 #include <setjmp.h>
 #include <unistd.h>
 #include <pthread.h>
+#include "cam.h"
 
 
 
@@ -37,7 +38,7 @@ int distance[TOTAL_ANGLES];
 #define BITMAP_W TOTAL_ANGLES
 #define BITMAP_H 256
 // bitmaps of historic passes
-#define HISTORY_SIZE 256
+#define HISTORY_SIZE 16
 unsigned char history[HISTORY_SIZE][BITMAP_W * BITMAP_H];
 // The 1st ranging in the history
 int ref_index = 0;
@@ -53,7 +54,20 @@ unsigned char current_bitmap[BITMAP_W * BITMAP_H];
 #define Y_THRESHOLD 16
 // number of dots required to calculate a position
 #define TOTAL_THRESHOLD 32
-
+// number of points required in the point cloud
+#define CLOUD_THRESHOLD 16
+// size of point cloud
+#define CLOUD_W 32
+#define CLOUD_H 32
+// the last good median in pixels
+int last_x = -1;
+int last_y = -1;
+// number of detections outside position threshold
+int last_age = -1;
+// maximum change in position allowed
+#define POSITION_THRESHOLD_X 45
+// number of detections outside threshold before discarding last position
+#define AGE_THRESHOLD 4
 
 
 // position in accum buffers
@@ -86,12 +100,16 @@ int total_frames = 0;
 
 int lidar_fd = -1;
 int servo_fd = -1;
-int min_yaw = 65;
-int max_yaw = 150;
+int min_yaw = 20;
+int max_yaw = 110;
 int pan = 66;
-int tilt = 124;
+int tilt = 125;
+cartimer_t servo_timer;
+cartimer_t profile_timer;
 
 void write_servos(int pan, int tilt);
+
+
 
 typedef struct 
 {
@@ -215,6 +233,22 @@ void compress_jpeg()
 
 void get_sync(unsigned char c);
 
+
+void reset_timer(cartimer_t *ptr)
+{
+	gettimeofday(&ptr->start_time, 0);
+}
+
+int get_timer_difference(cartimer_t *ptr)
+{
+	struct timeval current_time;
+	gettimeofday(&current_time, 0);
+	int result = current_time.tv_sec * 1000 + current_time.tv_usec / 1000 -
+		ptr->start_time.tv_sec * 1000 - ptr->start_time.tv_usec / 1000;
+	return result;
+}
+
+
 // Returns the FD of the serial port
 static int init_serial(const char *path, int baud)
 {
@@ -333,6 +367,82 @@ void draw_dot(int bitmap_x, int bitmap_y, int r, int g, int b)
 }
 
 
+void draw_line(int x1, 
+	int y1, 
+	int x2,
+	int y2,
+	int r,
+	int g, 
+	int b)
+{
+	int w = labs(x2 - x1);
+	int h = labs(y2 - y1);
+//printf("FindObjectMain::draw_line 1 %d %d %d %d\n", x1, y1, x2, y2);
+
+	if(!w && !h)
+	{
+		draw_dot(x1, y1, r, g, b);
+	}
+	else
+	if(w > h)
+	{
+// Flip coordinates so x1 < x2
+		if(x2 < x1)
+		{
+			y2 ^= y1;
+			y1 ^= y2;
+			y2 ^= y1;
+			x1 ^= x2;
+			x2 ^= x1;
+			x1 ^= x2;
+		}
+		int numerator = y2 - y1;
+		int denominator = x2 - x1;
+		int i;
+		for(i = x1; i <= x2; i++)
+		{
+			int y = y1 + (int64_t)(i - x1) * (int64_t)numerator / (int64_t)denominator;
+			draw_dot(i, y, r, g, b);
+		}
+	}
+	else
+	{
+// Flip coordinates so y1 < y2
+		if(y2 < y1)
+		{
+			y2 ^= y1;
+			y1 ^= y2;
+			y2 ^= y1;
+			x1 ^= x2;
+			x2 ^= x1;
+			x1 ^= x2;
+		}
+		int numerator = x2 - x1;
+		int denominator = y2 - y1;
+		int i;
+		for(i = y1; i <= y2; i++)
+		{
+			int x = x1 + (int64_t)(i - y1) * (int64_t)numerator / (int64_t)denominator;
+			draw_dot(x, i, r, g, b);
+		}
+	}
+}
+
+void draw_rect(int x1, 
+	int y1, 
+	int x2,
+	int y2,
+	int r,
+	int g, 
+	int b)
+{
+	draw_line(x1, y1, x2, y1, r, g, b);
+	draw_line(x2, y1, x2, y2, r, g, b);
+	draw_line(x2, y2, x1, y2, r, g, b);
+	draw_line(x1, y2, x1, y1, r, g, b);
+}
+
+
 void sort_dots(int *dots, int total)
 {
 	int done = 0;
@@ -358,13 +468,16 @@ void sort_dots(int *dots, int total)
 
 // Search for changes
 void compare_frames(int *total_dots,
+	int *cloud_total,
 	int *median_x,
 	int *median_y)
 {
 	int i, j, k, l;
 	int index = ref_index;
 
+// reset these but not the medians
 	*total_dots = 0;
+	*cloud_total = 0;
 
 // accumulate the history to make the ref bitmap
 	bzero(ref_bitmap, sizeof(ref_bitmap));
@@ -468,10 +581,32 @@ void compare_frames(int *total_dots,
 // calculate the median point
 	if(*total_dots >= TOTAL_THRESHOLD)
 	{
+//printf("compare_frames %d\n", __LINE__);
 		sort_dots(x, *total_dots);
 		sort_dots(y, *total_dots);
 		*median_x = x[*total_dots / 2];
 		*median_y = y[*total_dots / 2];
+
+// count the number of points near the median
+		for(j = *median_y - CLOUD_H / 2; j < *median_y + CLOUD_H / 2; j++)
+		{
+			if(j >= 0 && j < BITMAP_H)
+			{
+				unsigned char *current_row = current_bitmap + j * BITMAP_W;
+//				unsigned char *ref_row = ref_bitmap + j * BITMAP_W;
+				for(i = *median_x - CLOUD_W / 2; i < *median_x + CLOUD_W / 2; i++)
+				{
+					if(i >= 0 && i < BITMAP_W)
+					{
+						if(current_row[i] /* || ref_row[i] */ )
+						{
+							(*cloud_total)++;
+						}
+					}
+				}
+			}
+		}
+//printf("compare_frames %d\n", __LINE__);
 	}
 }
 
@@ -480,56 +615,121 @@ void compare_frames(int *total_dots,
 void do_motion()
 {
 	int total_dots = 0;
+	int cloud_total = 0;
+	int total_dots2 = 0;
+	int cloud_total2 = 0;
 	int median_x = -1;
 	int median_y = -1;
 	int got_it = 0;
+	int iterations = 0;
+	int i, j;
+	int prev_ref = ref_index;
+	int prev_history = total_history;
+//printf("do_motion %d\n", __LINE__);
+
+//reset_timer(&profile_timer);
 
 // advance ref_index until total_dots doesn't exceed threshold
 	do
 	{
 		compare_frames(&total_dots,
+			&cloud_total,
 			&median_x,
 			&median_y);
-		if(total_dots >= TOTAL_THRESHOLD)
+		if(total_dots >= TOTAL_THRESHOLD &&
+			cloud_total >= CLOUD_THRESHOLD)
 		{
 			got_it = 1;
+			total_dots2 = total_dots;
+			cloud_total2 = cloud_total;
+
+// advance ref until it doesn't pass anymore
 			ref_index++;
+			if(ref_index >= HISTORY_SIZE)
+			{
+				ref_index = 0;
+			}
 			total_history--;
 		}
+		iterations++;
 	} while(total_dots >= TOTAL_THRESHOLD &&
+		cloud_total >= CLOUD_THRESHOLD &&
 		total_history > PASSES);
 
+//printf("do_motion %d time=%d iterations=%d\n", 
+//__LINE__, 
+//get_timer_difference(&profile_timer),
+//iterations);
+
+	if(got_it)
+	{
+// test point cloud change
+// 1st position always passes
+		if(last_x < 0)
+		{
+			last_x = median_x;
+			last_y = median_y;
+			last_age = 0;
+		}
+		else
+// new position was out of range
+		if(ABS(last_x - median_x) > POSITION_THRESHOLD_X)
+		{
+			last_age++;
+// hasn't been out of range long enough
+			if(last_age < AGE_THRESHOLD)
+			{
+				got_it = 0;
+			}
+			else
+			{
+// out of range long enough.  Store new position
+				last_x = median_x;
+				last_y = median_y;
+				last_age = 0;
+			}
+		}
+		else
+// new position was in range.  store it
+		{
+			last_x = median_x;
+			last_y = median_y;
+			last_age = 0;
+		}
+	}
 
 	if(got_it)
 	{
 // point camera at new angle
-		int pan = min_yaw + 
+		pan = min_yaw + 
 			(TOTAL_ANGLES - median_x) * 
 			(max_yaw - min_yaw) / 
 			TOTAL_ANGLES;
+//printf("do_motion %d\n", __LINE__);
 		write_servos(pan, tilt);
-printf("do_motion %d median_x=%d pan=%d\n", __LINE__, median_x, pan);
+
+printf("do_motion %d median_x=%d pan=%d total_dots2=%d cloud_total2=%d\n", 
+__LINE__, 
+median_x, 
+pan, 
+total_dots2,
+cloud_total2);
 
 // draw new point
-		int i;
-		for(i = median_y - 10; i < median_y + 10; i++)
-		{
-			draw_dot(median_x,
-				i,
-				0,
-				255,
-				0);
-		}
+		draw_line(median_x, median_y - 10, median_x, median_y + 10, 0, 255, 0);
+		draw_line(median_x - 10, median_y, median_x + 10, median_y, 0, 255, 0);
 
-		for(i = median_x - 10; i < median_x + 10; i++)
-		{
-			draw_dot(i,
-				median_y,
-				0,
-				255,
-				0);
-		}
+// draw bounding box of 
+		draw_rect(median_x - CLOUD_W / 2, 
+			median_y - CLOUD_H / 2, 
+			median_x + CLOUD_W / 2, 
+			median_y + CLOUD_H / 2, 
+			0, 
+			255, 
+			0);
 	}
+//printf("do_motion %d time=%d\n", __LINE__, get_timer_difference(&profile_timer));
+//printf("do_motion %d\n", __LINE__);
 }
 
 
@@ -573,13 +773,12 @@ void get_packet(unsigned char c)
 // Scanning done.  analyze & plot it.
 			if(id == 89)
 			{
-/*
- * 				printf("rpm=%d errors=%d current_index=%d total_history=%d\n", 
- * 					rpm,
- * 					total_errors,
- * 					current_index,
- * 					total_history);
- */
+// printf("rpm=%d errors=%d ref_index=%d current_index=%d total_history=%d\n", 
+// rpm,
+// total_errors,
+// ref_index,
+// current_index,
+// total_history);
 				total_errors = 0;
 
 // create new bitmap from latest pass
@@ -613,11 +812,11 @@ void get_packet(unsigned char c)
 					{
 						ref_index = 0;
 					}
-printf("get_packet %d total_history=%d ref_index=%d current_index=%d\n", 
-__LINE__,
-total_history,
-ref_index,
-current_index);
+// printf("get_packet %d total_history=%d ref_index=%d current_index=%d\n", 
+// __LINE__,
+// total_history,
+// ref_index,
+// current_index);
 				}
 
 
@@ -645,13 +844,24 @@ current_index);
 					}
 				}
 
+// draw camera
+				for(i = 0; i < 10; i++)
+				{
+					draw_dot(0, -5 + i, 0, 0, 255);
+					draw_dot(90, -5 + i, 0, 0, 255);
+				}
+				
+
+
+
 // store a new ref
 				if(total_history > PASSES)
 				{
 					do_motion();
 				}
 
-				
+
+
 
 // transfer to X bitmap
 				for(i = 0; i < PICTURE_H; i++)
@@ -812,6 +1022,17 @@ void* servo_listener(void *ptr)
 	}
 }
 
+// Send a character
+void write_char(int fd, unsigned char c)
+{
+	int result;
+	do
+	{
+		result = write(fd, &c, 1);
+	} while(!result);
+}
+
+
 void write_servos(int pan, int tilt)
 {
 	if(servo_fd >= 0)
@@ -819,14 +1040,8 @@ void write_servos(int pan, int tilt)
 		char string[1024];
 		sprintf(string, "CAM %d %d\n", pan, tilt);
 
-//		for(int i = 0; i < strlen(string); i++)
-//		{
-//printf("write_servos %d %c\n", __LINE__, string[i]);
-//			write_char(string[i]);
-//			usleep(10000);
-//		}
-
-		int temp = write(servo_fd, string, strlen(string));
+		int result = write(servo_fd, string, strlen(string));
+//printf("write_servos %d: result=%d %s\n", __LINE__, result, string);
 	}
 }
 
@@ -839,6 +1054,8 @@ int init_servo()
 
 	if(servo_fd >= 0)
 	{
+		reset_timer(&servo_timer);
+
 		pthread_t tid;
 		pthread_attr_t  attr;
 		pthread_attr_init(&attr);
@@ -846,6 +1063,7 @@ int init_servo()
 
 // wait for arduino bootloader
 		sleep(2);
+		pan = (min_yaw + max_yaw) / 2;
 		write_servos(pan, tilt);
 	}
 	else

@@ -4,8 +4,14 @@
 #include "arm_math.h"
 #include "feiyu_pid.h"
 
+
+#define FIX_PHASE(x) \
+	while(x < 0) x += 360 * FRACTION; \
+	while(x >= 360 * FRACTION) x -= 360 * FRACTION;
+
 typedef struct
 {
+	int initialized;
 	int deadband;
 // the phase in degrees * FRACTION
 	int phase;

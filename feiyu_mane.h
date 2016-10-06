@@ -1,7 +1,7 @@
 #ifndef FEIYU_MANE_H
 #define FEIYU_MANE_H
 
-
+#include "arm_math.h"
 
 // pin 10/ADC12_IN0 -> RC filter connected to LMV358 OUT A. 1612 when off
 // pin 11/ADC12_IN1 -> RC filter connected to LMV358 OUT B. 1639 when off
@@ -26,6 +26,10 @@
 // pin 46/PB9 -> LED
 
 
+// program with 
+// make clean;make;feiyu_program feiyu_mane.bin 
+// make clean;make;feiyu_program -p 1 feiyu_mane.bin 
+// make clean;make;feiyu_program -p 2 feiyu_mane.bin 
 
 
 // enable a board to build the bootloader or mane program
@@ -39,9 +43,15 @@
 //#define BOARD2
 
 // mane anticogging table
-#define CALIBRATE_MOTOR
-#define ANTICOGGING
+//#define CALIBRATE_MOTOR
+//#define ANTICOGGING
 //#define TEST_MOTOR
+
+// derivative length
+#define ROLL_D_SIZE 8
+#define PITCH_D_SIZE 4
+#define HEADING_D_SIZE 8
+
 
 /* Definition for USARTx Pins */
 #define DEBUG_UART						USART1
@@ -57,7 +67,7 @@
 #define PASS_UART_RX_GPIO               GPIOB
 
 #define SLOW_BAUD 115200
-#define FAST_BAUD 1000000
+#define FAST_BAUD 2000000
 
 
 #define BLUE_LED_PIN 9
@@ -77,30 +87,61 @@
 // frequency of the mane timer
 #define HZ 1000
 // frequency of the IMU, determined by sample rate divider
-#define IMU_HZ 400
+#define IMU_HZ 2000
 
 
 
 #define SYNC_CODE 0xe5
+#define MOTOR_PACKET_SIZE 10
+#define IMU_PACKET_SIZE 20
 
 extern volatile int mane_time;
+
+
+// set of PID constants, but not accumulating the I
+typedef struct
+{
+// absolute angle
+	int i;
+// angle rate
+	int p;
+// rate of rate
+	int d;
+	int error_limit;
+	int rate_limit;
+} ipd_t;
+
+
+
+
 
 typedef struct
 {
 	int test_step;
 	int test_period;
 
-	int hall0;
-	int hall1;
-	int hall2;
+	int hall0; // yaw motor
+	int hall1; // roll motor
+	int hall2; // pitch motor
 
+
+#ifdef BOARD0
+
+// for dowmsampling the accel readings
 	int gyro_count;
+// for calibrating the IMU
+	int total_gyro;
+// total IMU packets for testing
+	int imu_count;
+	int debug_time;
 	int accel_x;
 	int accel_y;
 	int accel_z;
+// the raw gyro readings
 	int gyro_x;
 	int gyro_y;
 	int gyro_z;
+
 	int gyro_x_accum;
 	int gyro_y_accum;
 	int gyro_z_accum;
@@ -113,13 +154,14 @@ typedef struct
 	int prev_gyro_x_center;
 	int prev_gyro_y_center;
 	int prev_gyro_z_center;
+// the centers * FRACTION
 	int gyro_x_center;
 	int gyro_y_center;
 	int gyro_z_center;
-	int total_gyro;
+
 	int calibrate_imu;
 	int blend_counter;
-	
+
 	int abs_roll;
 	int abs_pitch;
 	int gyro_roll;
@@ -128,6 +170,46 @@ typedef struct
 	int current_roll;
 	int current_pitch;
 	int current_heading;
+
+	int target_roll;
+	int target_pitch;
+	int target_heading;
+
+// feedback based on IMU
+// heading motor on top
+// effect of roll motor on roll
+	ipd_t top_x;
+// effect of pitch motor on pitch
+	ipd_t top_y;
+// effect of yaw motor on yaw
+	ipd_t top_z;
+
+// heading motor behind camera
+	ipd_t back_x;
+	ipd_t back_z;
+
+// feedback based on hall effect sensors
+	ipd_t top_y2;
+	ipd_t top_x2;
+	ipd_t top_z2;
+	ipd_t back_x2;
+	ipd_t back_z2;
+	
+	
+// the phases for all 3 motors.
+	int x_phase;
+	int y_phase;
+	int z_phase;
+
+	derivative_t roll_accel;
+	int roll_accel_data[ROLL_D_SIZE];
+	derivative_t pitch_accel;
+	int pitch_accel_data[PITCH_D_SIZE];
+	derivative_t heading_accel;
+	int heading_accel_data[HEADING_D_SIZE];
+#endif // BOARD0
+
+
 } feiyu_t;
 
 extern feiyu_t fei;

@@ -341,6 +341,7 @@ static uint32_t I2C_Configure_Speed(I2C_HandleTypeDef *hi2c, uint32_t I2CClkSrcF
     /* Clock Fast Mode */
     tmp1 = I2C_CCR_FS;
     
+	
     /* Duty Cylce tLow/tHigh = 2 */
     if(hi2c->Init.DutyCycle == I2C_DUTYCYCLE_2)
     {
@@ -350,6 +351,8 @@ static uint32_t I2C_Configure_Speed(I2C_HandleTypeDef *hi2c, uint32_t I2CClkSrcF
     {
       tmp1 |= (I2CClkSrcFreq/(hi2c->Init.ClockSpeed * 25)) | I2C_DUTYCYCLE_16_9;
     }
+
+
 
     /* The minimum allowed value set in CCR register is 0x01 for Fast Mode */
     if( (tmp1 & I2C_CCR_CCR) < 1 )
@@ -408,6 +411,8 @@ HAL_StatusTypeDef HAL_I2C_Init(I2C_HandleTypeDef *hi2c)
 
   /* Get PCLK1 frequency */
   pclk1 = HAL_RCC_GetPCLK1Freq();
+//print_number(&uart, pclk1);
+
 
   /* Calculate frequency range */
   freqrange = I2C_FREQ_RANGE(pclk1);

@@ -77,9 +77,6 @@ void print_phases()
 }
 
 
-#define FIX_PHASE(x) \
-	while(x < 0) x += 360 * FRACTION; \
-	while(x >= 360 * FRACTION) x -= 360 * FRACTION;
 #define CALCULATE_WAVEFORM(x) ((uint32_t)motor_table[x] * (max_sin - min_sin) / 65535 + min_sin)
 
 #ifdef ANTICOGGING
@@ -208,12 +205,19 @@ const char index_offset[] =
 
 #endif // BOARD0
 
-#endif
+#endif // ANTICOGGING
 
 
 // set the PWM values for the phase
 void write_motor()
 {
+// writing it without initializing it crashes the chip
+	if(!motor.initialized)
+	{
+		return;
+	}
+	
+	
 	FIX_PHASE(motor.phase)
 	CLAMP(motor.power, 0, MAX_POWER);
 
@@ -243,15 +247,9 @@ void write_motor()
 	int index3 = (index1 + 240 * WAVEFORM_SIZE / 360) % WAVEFORM_SIZE;
 
 
-//#ifdef TEST_MOTOR
-//	motor.pwm1 = TimHandle.Instance->CCR1 = 1;
-//	motor.pwm2 = TimHandle.Instance->CCR2 = PERIOD / 2;
-//	motor.pwm3 = TimHandle.Instance->CCR3 = 0;
-//#else
 	motor.pwm1 = TimHandle.Instance->CCR1 = CALCULATE_WAVEFORM(index1);
 	motor.pwm2 = TimHandle.Instance->CCR2 = CALCULATE_WAVEFORM(index2);
 	motor.pwm3 = TimHandle.Instance->CCR3 = CALCULATE_WAVEFORM(index3);
-//#endif
 
 
 // print_number(&uart, TimHandle.Instance->CCR1);
@@ -267,36 +265,6 @@ void write_motor()
 //	print_phases();
 }
 
-#ifdef TEST_MOTOR
-#define KNEE 1600
-#define PWM2 930
-#define PWM3 1880
-void write_motor2()
-{
-	int translated = 0;
-	if(motor.pwm1 < KNEE)
-	{
-		translated = motor.pwm1 * PWM2 / KNEE;
-	}
-	else
-	{
-		translated = (motor.pwm1 - KNEE) * (1800 - PWM2) / (PWM3 - KNEE) + PWM2;
-	}
-
-
-
-	TimHandle.Instance->CCR1 = translated;
-//	TimHandle.Instance->CCR1 = motor.pwm1;
-	TimHandle.Instance->CCR2 = motor.pwm2;
-	TimHandle.Instance->CCR3 = motor.pwm3;
-}
-
-int get_pwm1()
-{
-	return TimHandle.Instance->CCR1;
-}
-
-#endif
 
 
 #ifdef CALIBRATE_MOTOR
@@ -424,9 +392,11 @@ void motor_test()
 
 void init_motor()
 {
+	motor.initialized = 1;
 	motor.deadband = MIN_DEADBAND;
+//	motor.deadband = 0;
 	motor.phase = 0 * FRACTION;
-	motor.power = MAX_POWER;
+	motor.power = MAX_POWER / 2;
 
 
 
@@ -451,7 +421,7 @@ void init_motor()
 
 	TimHandle.Instance = TIM1;
 	TimHandle.Init.Prescaler         = 0;
-//	TimHandle.Init.Prescaler         = 20;
+//	TimHandle.Init.Prescaler         = 60;
 	TimHandle.Init.Period            = PERIOD;
 	TimHandle.Init.ClockDivision     = 0;
 	TimHandle.Init.CounterMode       = TIM_COUNTERMODE_UP;
@@ -505,27 +475,17 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef *htim)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
 
 
-//#ifndef TEST_MOTOR
   GPIO_InitStruct.Pin = 
   	(1 << N_MOSFET_PIN1) |
   	(1 << N_MOSFET_PIN2) | 
   	(1 << N_MOSFET_PIN3);
-//#else
-//	GPIO_InitStruct.Pin = 
-//  		(1 << N_MOSFET_PIN1);
-//#endif
 
   HAL_GPIO_Init(N_MOSFET_GPIO, &GPIO_InitStruct);
 
-//#ifndef TEST_MOTOR
   GPIO_InitStruct.Pin = 
   	(1 << P_MOSFET_PIN1) | 
  	(1 << P_MOSFET_PIN2) |
   	(1 << P_MOSFET_PIN3);
-//#else
-//  GPIO_InitStruct.Pin = 
-// 	(1 << P_MOSFET_PIN2);
-//#endif
 
   HAL_GPIO_Init(P_MOSFET_GPIO, &GPIO_InitStruct);
 

@@ -252,7 +252,7 @@ void main()
 	while(mane_time < end_time2 && !done)
 	{
 		handle_uart();
-		if(UART_EMPTY(&uart))
+		if(uart_got_output(&uart))
 		{
 			print_text(&uart, "**** BOOT\n");
 		}

@@ -24,6 +24,7 @@ typedef struct
 	int counter;
 	int error_accum;
 	int i_downsample;
+// call it mypid_t to avoid conflicting with the linux pid_t
 } mypid_t;
 
 

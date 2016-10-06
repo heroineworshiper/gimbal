@@ -9,6 +9,8 @@ typedef struct
 	void (*current_function)();
 	int value;
 	int time;
+	int got_readout;
+	int count;
 } hall_t;
 
 

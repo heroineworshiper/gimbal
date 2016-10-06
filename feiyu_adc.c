@@ -58,13 +58,13 @@ void get_adc1()
 
 
 #ifdef TEST_MOTOR
-TRACE
-print_fixed(&uart, motor.phase);
+//TRACE
+//print_fixed(&uart, motor.phase);
 //print_number(&uart, motor.pwm1);
 //print_number(&uart, motor.pwm2);
 //print_number(&uart, get_pwm1());
-print_number(&uart, adc.current1_avg);
-print_number(&uart, adc.current2_avg);
+//print_number(&uart, adc.current1_avg);
+//print_number(&uart, adc.current2_avg);
 //print_number(&uart, motor.power);
 //motor.phase += FRACTION;
 //write_motor();

@@ -15,6 +15,9 @@ typedef struct
 	int time;
 	int time2;
 	int count;
+	int count2;
+	int got_readout;
+	int initialized;
 } imu_t;
 
 extern imu_t imu;
@@ -22,14 +25,12 @@ extern imu_t imu;
 
 void init_imu();
 void do_ahrs(unsigned char *imu_buffer);
+void send_imu_result();
+void do_imu();
 
 #define handle_imu() \
 { \
-	if(imu.i2c_function != 0) \
-	{ \
-		imu.i2c_function(); \
-	} \
-	else \
+	imu.count2++; \
 	if(imu.imu_function != 0) \
 	{ \
 		imu.imu_function(); \

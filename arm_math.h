@@ -4,6 +4,9 @@
 #include <stdint.h>
 
 
+// fixed point math library
+
+
 #define MAX_VECTOR 4
 #define FRACTION 256
 
