@@ -84,6 +84,7 @@ FEIYU_OBJS := \
 FEIYU_MANE_OBJS := \
 	arm_math.o \
 	feiyu_adc.o \
+	feiyu_feedback.o \
 	feiyu_imu.o \
 	feiyu_hall.o \
 	feiyu_mane.o \
@@ -200,7 +201,7 @@ feiyu_bootloader.bin: $(FEIYU_OBJS)
 	$(OBJCOPY_FEIYU) -O binary feiyu_bootloader.elf feiyu_bootloader.bin
 
 
-# compile feiyu.hex
+# compile feiyu.hex for the ATMega328
 feiyu.hex: feiyu2.c avr_debug.c
 	$(AVR_GCC) $(AVR_CFLAGS) -o feiyu.o feiyu2.c avr_debug.c
 	$(AVR_GCC) $(AVR_LFLAGS) -o feiyu.elf feiyu.o
@@ -266,6 +267,7 @@ startup_stm32f103xb.o: startup_stm32f103xb.s
 system_stm32f1xx.o: system_stm32f1xx.c
 feiyu_bootloader.o: feiyu_bootloader.c
 feiyu_adc.o: feiyu_adc.c
+feiyu_feedback.o: feiyu_feedback.c
 feiyu_imu.o: feiyu_imu.c
 feiyu_hall.o: feiyu_hall.c
 feiyu_mane.o: feiyu_mane.c

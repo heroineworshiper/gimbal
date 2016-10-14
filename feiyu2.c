@@ -1,10 +1,16 @@
-// controller for the Feiyu
+// controller for the Feiyu atmega328
+// compile with make feiyu.hex
+// program with make feiyu_isp
+
 
 #include "feiyu.h"
 #include "avr_debug.h"
 
 // vehicle mounted board uses pure bluetooth input
 //#define USE_BLUETOOTH
+
+// use PWM to send pitch/yaw instead of UART
+//#define USE_PWM
 
 #define PWM_DISABLE_PIN 5
 #define MODE_PIN 2
@@ -63,6 +69,11 @@ uint8_t pwm_cycles = 0;
 uint16_t stick_counter = 0;
 #define STICK_COUNT 10
 
+// code to send in UART mode
+uint8_t yaw_code = 'U';
+
+
+#ifdef USE_PWM
 // timer compare interrupt
 ISR(TIMER1_COMPA_vect)
 {
@@ -103,10 +114,68 @@ ISR(TIMER1_COMPA_vect)
 
 	OCR1A = min_pwm;
 }
+#endif // USE_PWM
+
+
+
+static void uart_delay()
+{
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+	asm volatile ("nop");
+}
 
 // timer overflow
 ISR(TIMER1_OVF_vect)
 {
+#ifdef USE_PWM
 	pwm_cycles++;
 	if(pwm_cycles >= 2)
 	{
@@ -138,7 +207,41 @@ ISR(TIMER1_OVF_vect)
 		
 		OCR1A = min_pwm;
 	}
+#else // USE_PWM
+
+	if(pwm_enabled)
+	{
+		pwm_cycles++;
+// slow down the repeat rate
+		if(pwm_cycles >= 4)
+		{
+			pwm_cycles = 0;
+// send RS232 byte
+// start bit
+			bitClear(PORTD, YAW_PIN);
+			uart_delay();
+// data bits
+			uint8_t temp = yaw_code;
+			int i;
+			for(i = 0; i < 8; i++)
+			{
+				if(temp & 0x1)
+				{
+					bitSet(PORTD, YAW_PIN);
+				}
+				else
+				{
+					bitClear(PORTD, YAW_PIN);
+				}
+				uart_delay();
+				temp >>= 1;
+			}
+			bitSet(PORTD, YAW_PIN);
+		}
+	}
+#endif // !USE_PWM
 }
+
 
 
 ISR(ADC_vect)
@@ -233,15 +336,18 @@ ISR(ADC_vect)
 				if(yaw_analog >= STICK_CENTER + STICK_DEADBAND)
 				{
 					new_yaw_pwm = PWM_MID + yaw_speed;
+					yaw_code = '2';
 				}
 				else
 				if(yaw_analog < STICK_CENTER - STICK_DEADBAND)
 				{
 					new_yaw_pwm = PWM_MID - yaw_speed;
+					yaw_code = '1';
 				}
 				else
 				{
 					new_yaw_pwm = PWM_MID;
+					yaw_code = 'U';
 				}
 			}
 
@@ -322,17 +428,23 @@ int main()
 // duty cycle
 	OCR1A = PWM_MID;
 // enable interrupts
-	TIMSK1 = (1 << TOIE1) |
-		(1 << OCIE1A);
+	TIMSK1 = (1 << TOIE1)
+#ifdef USE_PWM
+		 | (1 << OCIE1A);
+#else
+		;
+#endif
 
 	sei();
 
 	while(1)
 	{
 		handle_serial();
+
 		if(!bitRead(PINB, PWM_DISABLE_PIN) && pwm_enabled)
 		{
 			print_text("pwm disabled\n");
+			cli();
 			pwm_enabled = 0;
 // disable outputs.  Must also keep the PORT bits 0 to disable the pullups
 			bitClear(DDRD, MODE_PIN);
@@ -341,6 +453,7 @@ int main()
 			bitClear(PORTD, MODE_PIN);
 			bitClear(PORTD, PITCH_PIN);
 			bitClear(PORTD, YAW_PIN);
+			sei();
 		}
 		else
 		if(bitRead(PINB, PWM_DISABLE_PIN) && !pwm_enabled)

@@ -48,9 +48,9 @@
 //#define TEST_MOTOR
 
 // derivative length
-#define ROLL_D_SIZE 8
+#define ROLL_D_SIZE 4
 #define PITCH_D_SIZE 4
-#define HEADING_D_SIZE 8
+#define HEADING_D_SIZE 4
 
 
 /* Definition for USARTx Pins */
@@ -92,7 +92,7 @@
 
 
 #define SYNC_CODE 0xe5
-#define MOTOR_PACKET_SIZE 10
+#define MOTOR_PACKET_SIZE 12
 #define IMU_PACKET_SIZE 20
 
 extern volatile int mane_time;

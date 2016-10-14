@@ -396,7 +396,7 @@ void init_motor()
 	motor.deadband = MIN_DEADBAND;
 //	motor.deadband = 0;
 	motor.phase = 0 * FRACTION;
-	motor.power = MAX_POWER / 2;
+	motor.power = MAX_POWER / 4;
 
 
 
