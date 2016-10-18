@@ -46,6 +46,7 @@
 //#define CALIBRATE_MOTOR
 //#define ANTICOGGING
 //#define TEST_MOTOR
+//#define TEST_KINEMATICS
 
 // derivative length
 #define ROLL_D_SIZE 4
@@ -127,13 +128,14 @@ typedef struct
 
 #ifdef BOARD0
 
+	int debug_time;
+	int test_scale;
 // for dowmsampling the accel readings
 	int gyro_count;
 // for calibrating the IMU
 	int total_gyro;
 // total IMU packets for testing
 	int imu_count;
-	int debug_time;
 	int accel_x;
 	int accel_y;
 	int accel_z;
@@ -171,6 +173,10 @@ typedef struct
 	int current_pitch;
 	int current_heading;
 
+// absolute angles of the motors detected by hall effect sensor
+	int current_roll2;
+	int current_pitch2;
+
 	int target_roll;
 	int target_pitch;
 	int target_heading;
@@ -207,6 +213,9 @@ typedef struct
 	int pitch_accel_data[PITCH_D_SIZE];
 	derivative_t heading_accel;
 	int heading_accel_data[HEADING_D_SIZE];
+
+
+
 #endif // BOARD0
 
 

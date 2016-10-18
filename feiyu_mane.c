@@ -357,6 +357,7 @@ void main()
 	int test_time = mane_time;
 	fei.test_period = 10;
 	fei.test_step = 1;
+	fei.test_scale = FRACTION;
 
 
 
@@ -465,6 +466,8 @@ void main()
 #ifdef BOARD0
 // user command
 		int print_pid = 0;
+		int print_phase = 0;
+		int print_scale = 0;
 		if(uart_got_input(&uart))
 		{
 			unsigned char c = uart_get_input(&uart);
@@ -472,7 +475,8 @@ void main()
 			{
 				case '2':
 				{
-					fei.target_heading -= FRACTION;
+//					fei.target_heading -= FRACTION;
+					fei.target_heading -= FRACTION / 4;
 					if(fei.target_heading < -180 * FRACTION)
 					{
 						fei.target_heading += 360 * FRACTION;
@@ -482,7 +486,8 @@ void main()
 			
 				case '1':
 				{
-					fei.target_heading += FRACTION;
+//					fei.target_heading += FRACTION;
+					fei.target_heading += FRACTION / 4;
 					if(fei.target_heading > 180 * FRACTION)
 					{
 						fei.target_heading -= 360 * FRACTION;
@@ -519,11 +524,40 @@ void main()
 #endif // TEST_MOTOR
 
 
+#ifdef TEST_KINEMATICS
+				case 'w':
+					fei.x_phase += FRACTION;
+					print_phase = 1;
+					break;
+				case 'z':
+					fei.x_phase -= FRACTION;
+					print_phase = 1;
+					break;
+				case 'u':
+					fei.z_phase += FRACTION;
+					print_phase = 1;
+					break;
+				case 'n':
+					fei.z_phase -= FRACTION;
+					print_phase = 1;
+					break;
+				case 't':
+					fei.x_phase += FRACTION;
+					fei.z_phase -= FRACTION;
+					print_phase = 1;
+					break;
+				case 'v':
+					fei.x_phase -= FRACTION;
+					fei.z_phase += FRACTION;
+					print_phase = 1;
+					break;
+#else
+
 
 				case 'w':
 				{
-//					fei.back_x.i += 1;
-//					print_pid = 1;
+					fei.test_scale += 1;
+					print_scale = 1;
 
 	//				fei.test_step++;
 	//				fei.test_period++;
@@ -542,8 +576,8 @@ void main()
 			
 				case 'z':
 				{
-//					fei.back_x.i -= 1;
-//					print_pid = 1;
+					fei.test_scale -= 1;
+					print_scale = 1;
 
 	//				fei.test_step--;
 	//				fei.test_period--;
@@ -600,6 +634,10 @@ void main()
 	//				write_motor();
 				}
 				break;
+
+
+#endif // !TEST_KINEMATICS
+
 			}
 			
 			if(print_pid)
@@ -608,6 +646,24 @@ void main()
 				print_fixed(&uart, fei.top_x.d);
 //				print_fixed(&uart, fei.top_z.d);
 			}
+			
+			if(print_phase)
+			{
+				TRACE
+				print_text(&uart, "X=");
+				print_fixed(&uart, fei.x_phase);
+				print_text(&uart, "Z=");
+				print_fixed(&uart, fei.z_phase);
+				print_text(&uart, "current_pitch2=");
+				print_fixed(&uart, fei.current_pitch2);
+			}
+			
+			if(print_scale)
+			{
+				TRACE
+				print_fixed(&uart, fei.test_scale);
+			}
+			
 			
 //			TRACE
 //			print_fixed(&uart, fei.target_heading);
