@@ -116,11 +116,11 @@ void init_feedback()
 	
 // effect of pitch motor on pitch
 	init_ipd(&fei.top_y,  
-		1 * FRACTION,   // I as high as possible
-		FRACTION / 16,   // P as high as possible
-		FRACTION / 8,   // D as low as possible
-		255 * FRACTION,   // error limit
-		255 * FRACTION);  // rate limit
+		FIXED(1),   // I as high as possible
+		FIXED(0.0625),   // P as high as possible
+		FIXED(0.125),   // D as low as possible
+		FIXED(255),   // error limit
+		FIXED(255));  // rate limit
 	
 
 
@@ -128,18 +128,18 @@ void init_feedback()
 
 // effect of roll motor on roll
 	init_ipd(&fei.top_x,  
-		1 * FRACTION,   // I
-		FRACTION / 4,   // P
-		FRACTION / 1,   // D
-		255 * FRACTION, 
-		255 * FRACTION);
+		FIXED(1),   // I
+		FIXED(0.25),   // P
+		FIXED(1),   // D
+		FIXED(255), 
+		FIXED(255));
 // effect of yaw motor on yaw
 	init_ipd(&fei.top_z, 
-		1 * FRACTION,  // I
-		FRACTION / 4,  // P
-		FRACTION / 2,  // D
-		255 * FRACTION,  // error limit
-		255 * FRACTION); // rate limit
+		FIXED(1),  // I
+		FIXED(0.25),  // P
+		FIXED(0.5),  // D
+		FIXED(255),  // error limit
+		FIXED(255)); // rate limit
 
 
 
@@ -147,92 +147,92 @@ void init_feedback()
 // handle at 45 deg
 // effect of roll motor on roll
 	init_ipd(&fei.top_x45,  
-		FRACTION / 2,   // I
-//		1 * FRACTION,  // I
-		FRACTION / 4,   // P
-		FRACTION * 2,   // D
-		255 * FRACTION, 
-		255 * FRACTION);
+		FIXED(0.5),   // I
+//		FIXED(1),  // I
+		FIXED(0.25),   // P
+		FIXED(2),   // D
+		FIXED(255), 
+		FIXED(255));
 // effect of yaw motor on yaw
 	init_ipd(&fei.top_z45, 
-		FRACTION / 2,  // I
-//		1 * FRACTION,  // I
-		FRACTION / 4,  // P
-		FRACTION * 2,  // D
-		255 * FRACTION,  // error limit
-		255 * FRACTION); // rate limit
+		FIXED(0.5),  // I
+//		FIXED(1),  // I
+		FIXED(0.25),  // P
+		FIXED(2),  // D
+		FIXED(255),  // error limit
+		FIXED(255)); // rate limit
 	
 	
 	
 // effect of roll motor on yaw
 	init_ipd(&fei.back_x45,  
-		FRACTION / 2,  // I
-//		1 * FRACTION,  // I
-		FRACTION / 4,  // P
-		FRACTION * 2,  // D 
-		1 * FRACTION, 
-		1 * FRACTION);
+		FIXED(0.5),  // I
+//		FIXED(1),  // I
+		FIXED(0.25),  // P
+		FIXED(2),  // D 
+		FIXED(1), 
+		FIXED(1));
 // effect of yaw motor on roll
 	init_ipd(&fei.back_z45, 
-		FRACTION / 2,  // I
-//		1 * FRACTION,  // I
-		FRACTION / 4,  // P
-		FRACTION * 2,  // D
-		255 * FRACTION,  // error limit
-		255 * FRACTION); // rate limit
+		FIXED(0.5),  // I
+//		FIXED(1),  // I
+		FIXED(0.25),  // P
+		FIXED(2),  // D
+		FIXED(255),  // error limit
+		FIXED(255)); // rate limit
 
 
 // handle at 90 deg
 
 // effect of roll motor on yaw
 	init_ipd(&fei.back_x,  
-		FRACTION / 2,  // I
-//		1 * FRACTION,  // I
-		FRACTION / 4,  // P
-		FRACTION / 2,  // D 
-		1 * FRACTION, 
-		1 * FRACTION);
+		FIXED(0.5),  // I
+//		FIXED(1),  // I
+		FIXED(0.25),  // P
+		FIXED(0.5),  // D 
+		FIXED(1), 
+		FIXED(1));
 // effect of yaw motor on roll
 	init_ipd(&fei.back_z, 
-		1 * FRACTION,  // I
-		FRACTION / 4,  // P
-		FRACTION / 1,  // D
-		255 * FRACTION,  // error limit
-		255 * FRACTION); // rate limit
+		FIXED(1),  // I
+		FIXED(0.25),  // P
+		FIXED(1),  // D
+		FIXED(255),  // error limit
+		FIXED(255)); // rate limit
 
 
 
 // feedback using hall sensors
 	init_ipd(&fei.top_y2, 
-		10 * FRACTION,  // I
-		1 * FRACTION,  // P
+		FIXED(10),  // I
+		FIXED(1),  // P
 		0,  // D
-		60 * FRACTION,  // error limit
-		60 * FRACTION); // rate limit
+		FIXED(60),  // error limit
+		FIXED(60)); // rate limit
 	init_ipd(&fei.top_x2, 
-		10 * FRACTION,  // I
-		1 * FRACTION,  // P
+		FIXED(10),  // I
+		FIXED(1),  // P
 		0,  // D
-		60 * FRACTION,  // error limit
-		60 * FRACTION); // rate limit
+		FIXED(60),  // error limit
+		FIXED(60)); // rate limit
 	init_ipd(&fei.top_z2, 
-		10 * FRACTION,  // I
-		1 * FRACTION,  // P
+		FIXED(10),  // I
+		FIXED(1),  // P
 		0,  // D
-		60 * FRACTION,  // error limit
-		60 * FRACTION); // rate limit
+		FIXED(60),  // error limit
+		FIXED(60)); // rate limit
 	init_ipd(&fei.back_x2, 
-		10 * FRACTION,  // I
-		1 * FRACTION,  // P
+		FIXED(10),  // I
+		FIXED(1),  // P
 		0,  // D
-		60 * FRACTION,  // error limit
-		60 * FRACTION); // rate limit
+		FIXED(60),  // error limit
+		FIXED(60)); // rate limit
 	init_ipd(&fei.back_z2, 
-		10 * FRACTION,  // I
-		1 * FRACTION,  // P
+		FIXED(10),  // I
+		FIXED(1),  // P
 		0,  // D
-		60 * FRACTION,  // error limit
-		60 * FRACTION); // rate limit
+		FIXED(60),  // error limit
+		FIXED(60)); // rate limit
 }
 
 
@@ -538,16 +538,16 @@ void do_feedback()
 
 		}
 
-if(mane_time - fei.debug_time >= HZ / 10)
-{
-fei.debug_time = mane_time;
-TRACE
+//if(mane_time - fei.debug_time >= HZ / 10)
+//{
+//fei.debug_time = mane_time;
+//TRACE
 //print_fixed(&uart, fei.current_roll);
 //print_fixed(&uart, fei.current_roll2);
 //print_fixed(&uart, fei.current_pitch2);
-print_fixed(&uart, fei.handle_angle);
+//print_fixed(&uart, fei.handle_angle);
 //print_fixed(&uart, yaw_roll_fraction1);
-print_fixed(&uart, fei.yaw_roll_fraction);
+//print_fixed(&uart, fei.yaw_roll_fraction);
 
 //print_number(&uart, fei.hall1); // roll motor
 //print_fixed(&uart, fei.current_heading);
@@ -557,7 +557,7 @@ print_fixed(&uart, fei.yaw_roll_fraction);
 //print_fixed(&uart, y_error);
 //print_number(&uart, fei.hall0);
 //print_number(&uart, fei.hall2); // pitch motor
-}
+//}
 
 		FIX_PHASE(fei.x_phase);
 		FIX_PHASE(fei.z_phase);

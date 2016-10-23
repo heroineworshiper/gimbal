@@ -87,8 +87,8 @@
 
 // frequency of the mane timer
 #define HZ 1000
-// frequency of the IMU, determined by sample rate divider
-#define IMU_HZ 2000
+// frequency of the IMU, determined by sample rate divider & CPU load
+#define IMU_HZ 1872
 
 
 

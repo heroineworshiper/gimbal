@@ -9,7 +9,7 @@
 
 #define MAX_VECTOR 4
 #define FRACTION 256
-#define FIXED(x) ((int)(x * FRACTION))
+#define FIXED(x) ((int)((x) * FRACTION))
 
 //#define absf(x) ((x) > 0 ? (x) : (-(x)))
 //#define abs(x) ((x) > 0 ? (x) : (-(x)))

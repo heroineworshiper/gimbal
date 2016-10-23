@@ -13,7 +13,7 @@
 #ifdef BOARD0
 
 
-#define ROLL_OFFSET (5 * FRACTION)
+#define ROLL_OFFSET FIXED(5)
 
 
 #define GYRO_RATIO (IMU_HZ / 50)
@@ -49,6 +49,7 @@ void do_ahrs(unsigned char *imu_buffer)
 * print_number(&uart, fei.hall1);		
 * print_number(&uart, fei.hall2);		
 */
+	static int blink_counter = 0;
 
 	fei.gyro_count++;
 	if(fei.gyro_count >= GYRO_RATIO)
@@ -89,6 +90,14 @@ void do_ahrs(unsigned char *imu_buffer)
 
 	if(fei.calibrate_imu)
 	{
+// blink the LED
+		blink_counter++;
+		if(blink_counter >= IMU_HZ / 10)
+		{
+			blink_counter = 0;
+			send_uart(&uart, ".", 1);
+		}
+
 		fei.gyro_x_accum += fei.gyro_x;
 		fei.gyro_y_accum += fei.gyro_y;
 		fei.gyro_z_accum += fei.gyro_z;
@@ -150,6 +159,7 @@ void do_ahrs(unsigned char *imu_buffer)
 			fei.gyro_z_center = fei.gyro_z_accum * FRACTION / fei.total_gyro;
 
 // test if calculation didn't drift
+			print_lf(&uart);
 			TRACE2
 			print_text(&uart, "spread=");
 			print_number(&uart, fei.gyro_x_max - fei.gyro_x_min);
@@ -184,6 +194,7 @@ void do_ahrs(unsigned char *imu_buffer)
 
 // try again
 			{
+				print_lf(&uart);
 				fei.total_gyro = 0;
 				fei.gyro_x_accum = 0;
 				fei.gyro_y_accum = 0;
@@ -243,10 +254,11 @@ void do_ahrs(unsigned char *imu_buffer)
 
 // debug
 	fei.imu_count++;
+
 //	if(mane_time - fei.debug_time > HZ / 10)
 	if(mane_time - fei.debug_time >= HZ)
 	{
-//		TRACE
+		TRACE
 //		print_number(&uart, fei.gyro_x);
 //		print_number(&uart, fei.gyro_y);
 //		print_number(&uart, fei.gyro_z);
@@ -264,8 +276,8 @@ void do_ahrs(unsigned char *imu_buffer)
 //		print_fixed(&uart, fei.current_roll - fei.abs_roll);
 //	    print_fixed(&uart, fei.current_pitch - fei.abs_pitch);
 
-//		print_text(&uart, "fei.imu_count=");
-//	    print_number(&uart, fei.imu_count);
+		print_text(&uart, "fei.imu_count=");
+	    print_number(&uart, fei.imu_count);
 
 		fei.debug_time = mane_time;
 		fei.imu_count = 0;
