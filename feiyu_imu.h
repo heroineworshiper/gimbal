@@ -11,6 +11,7 @@ typedef struct
 	unsigned char reg;
 	int bytes;
 	int current_byte;
+	int error;
 	unsigned char i2c_buffer[16];
 	int time;
 	int time2;

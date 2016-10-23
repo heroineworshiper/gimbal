@@ -13,6 +13,39 @@
 
 #ifdef BOARD0
 
+static const unsigned char handle_table[] = {
+    5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, // roll 0
+    7, 11, 16, 21, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, // roll 5
+    11, 14, 18, 22, 27, 31, 36, 41, 46, 51, 56, 61, 65, 70, 75, 80, 85, // roll 10
+    16, 18, 21, 25, 29, 33, 38, 42, 47, 52, 56, 61, 66, 71, 76, 80, 85, // roll 15
+    21, 22, 25, 28, 32, 36, 40, 44, 48, 53, 57, 62, 67, 71, 76, 81, 85, // roll 20
+    25, 27, 29, 32, 35, 38, 42, 46, 50, 54, 59, 63, 67, 72, 76, 81, 85, // roll 25
+    30, 31, 33, 36, 38, 41, 45, 48, 52, 56, 60, 64, 69, 73, 77, 81, 86, // roll 30
+    35, 36, 38, 40, 42, 45, 48, 51, 55, 58, 62, 66, 70, 74, 78, 82, 86, // roll 35
+    40, 41, 42, 44, 46, 48, 51, 54, 57, 61, 64, 67, 71, 75, 79, 82, 86, // roll 40
+    45, 46, 47, 48, 50, 52, 55, 57, 60, 63, 66, 69, 73, 76, 79, 83, 86 // roll 45
+
+};
+
+
+int get_handle_angle()
+{
+	int table_row = fei.current_roll2 / 5 / FRACTION;
+	if(table_row < 0) table_row *= -1;
+	int table_column = fei.current_pitch2 / 5 / FRACTION - 1;
+
+	if(table_column < 0)
+	{
+		return fei.current_roll2;
+	}
+	else
+	if(table_column > 15)
+	{
+		return 90 * FRACTION;
+	}
+	
+	return handle_table[table_row * 17 + table_column] * FRACTION;
+}
 
 static void init_ipd(ipd_t *ptr, 
 	int i, 
@@ -26,6 +59,19 @@ static void init_ipd(ipd_t *ptr,
 	ptr->d = d;
 	ptr->error_limit = error_limit;
 	ptr->rate_limit = rate_limit;
+}
+
+static void blend_ipd(ipd_t *out, 
+	ipd_t *arg1,
+	ipd_t *arg2,
+	int fraction)
+{
+	int inv_fraction = FRACTION - fraction;
+	out->i = (arg1->i * inv_fraction + arg2->i * fraction) / FRACTION;
+	out->p = (arg1->p * inv_fraction + arg2->p * fraction) / FRACTION;
+	out->d = (arg1->d * inv_fraction + arg2->d * fraction) / FRACTION;
+	out->error_limit = (arg1->error_limit * inv_fraction + arg2->error_limit * fraction) / FRACTION;
+	out->rate_limit = (arg1->rate_limit * inv_fraction + arg2->rate_limit * fraction) / FRACTION;
 }
 
 
@@ -77,51 +123,8 @@ void init_feedback()
 		255 * FRACTION);  // rate limit
 	
 
-// the 45 deg case
-#if 0
-// effect of roll motor on roll
-	init_ipd(&fei.top_x,  
-		FRACTION / 2,   // I
-//		1 * FRACTION,   // I
-		FRACTION / 4,   // P
-		FRACTION * 2,   // D
-//		FRACTION / 1,   // D
-		255 * FRACTION, 
-		255 * FRACTION);
-// effect of yaw motor on yaw
-	init_ipd(&fei.top_z, 
-		FRACTION / 2,  // I
-//		1 * FRACTION,  // I
-		FRACTION / 4,  // P
-		FRACTION * 2,  // D
-//		FRACTION / 2,  // D
-		255 * FRACTION,  // error limit
-		255 * FRACTION); // rate limit
-	
-	
-	
-// effect of roll motor on yaw
-	init_ipd(&fei.back_x,  
-		FRACTION / 2,  // I
-		FRACTION / 4,  // P
-		FRACTION * 2,  // D 
-//		FRACTION / 2,  // D 
-		1 * FRACTION, 
-		1 * FRACTION);
-// effect of yaw motor on roll
-	init_ipd(&fei.back_z, 
-		FRACTION / 2,  // I
-//		1 * FRACTION,  // I
-		FRACTION / 4,  // P
-		FRACTION * 2,  // D
-//		FRACTION / 1,  // D
-		255 * FRACTION,  // error limit
-		255 * FRACTION); // rate limit
 
-
-#else // 0
-
-// normal cases
+// handle at 0 deg
 
 // effect of roll motor on roll
 	init_ipd(&fei.top_x,  
@@ -137,12 +140,54 @@ void init_feedback()
 		FRACTION / 2,  // D
 		255 * FRACTION,  // error limit
 		255 * FRACTION); // rate limit
+
+
+
+
+// handle at 45 deg
+// effect of roll motor on roll
+	init_ipd(&fei.top_x45,  
+		FRACTION / 2,   // I
+//		1 * FRACTION,  // I
+		FRACTION / 4,   // P
+		FRACTION * 2,   // D
+		255 * FRACTION, 
+		255 * FRACTION);
+// effect of yaw motor on yaw
+	init_ipd(&fei.top_z45, 
+		FRACTION / 2,  // I
+//		1 * FRACTION,  // I
+		FRACTION / 4,  // P
+		FRACTION * 2,  // D
+		255 * FRACTION,  // error limit
+		255 * FRACTION); // rate limit
 	
 	
 	
 // effect of roll motor on yaw
+	init_ipd(&fei.back_x45,  
+		FRACTION / 2,  // I
+//		1 * FRACTION,  // I
+		FRACTION / 4,  // P
+		FRACTION * 2,  // D 
+		1 * FRACTION, 
+		1 * FRACTION);
+// effect of yaw motor on roll
+	init_ipd(&fei.back_z45, 
+		FRACTION / 2,  // I
+//		1 * FRACTION,  // I
+		FRACTION / 4,  // P
+		FRACTION * 2,  // D
+		255 * FRACTION,  // error limit
+		255 * FRACTION); // rate limit
+
+
+// handle at 90 deg
+
+// effect of roll motor on yaw
 	init_ipd(&fei.back_x,  
 		FRACTION / 2,  // I
+//		1 * FRACTION,  // I
 		FRACTION / 4,  // P
 		FRACTION / 2,  // D 
 		1 * FRACTION, 
@@ -154,9 +199,6 @@ void init_feedback()
 		FRACTION / 1,  // D
 		255 * FRACTION,  // error limit
 		255 * FRACTION); // rate limit
-#endif // 1
-
-
 
 
 
@@ -288,21 +330,67 @@ void do_feedback()
 #define ROLL_MIN 19000
 #define ROLL_MAX 23600
 
-// absolute pitch in degrees
+// pitch servo in degrees
 		fei.current_pitch2 = (fei.hall2 - PITCH_VERTICAL) * 90 * FRACTION / 
 			(PITCH_UP - PITCH_VERTICAL);
 		CLAMP(fei.current_pitch2, 0, 90 * FRACTION);
+// roll servo in degrees
 		fei.current_roll2 = (ROLL_VERTICAL - fei.hall1) * 50 * FRACTION / 
 			(ROLL_VERTICAL - ROLL_MIN);
 
 
-// Amount yaw motor contributes to roll
-		int yaw_roll_fraction = 1 * FRACTION - (cos_fixed(fei.current_pitch2 * 2) + 1 * FRACTION) / 2;
-//		int yaw_roll_fraction = (fei.hall2 - PITCH_VERTICAL) * FRACTION / 
-//			(PITCH_UP - PITCH_VERTICAL);
 
-// Amount yaw motor contributes to pitch
-//		int yaw_pitch_fraction = 1 * FRACTION - (cos_fixed(imu2.current_roll * 2) + 1 * FRACTION) / 2;
+		fei.handle_angle = get_handle_angle();
+
+
+// DEBUG
+//fei.handle_angle = 45 * FRACTION;
+
+// Amount yaw motor contributes to roll
+//		fei.yaw_roll_fraction = 1 * FRACTION - 
+//			(cos_fixed(fei.handle_angle * 2) + 1 * FRACTION) / 2;
+		fei.yaw_roll_fraction = fei.handle_angle * FRACTION / (90 * FRACTION);
+// copy for debugging
+		int yaw_roll_fraction1 = fei.yaw_roll_fraction;
+
+// fudge the number
+		int division1 = FRACTION / 5;
+		int division2 = FRACTION / 3;
+		int halfway = FRACTION / 2;
+		int division4 = FRACTION * 2 / 3;
+		int division5 = FRACTION * 3 / 4;
+		if(fei.yaw_roll_fraction < division1)
+		{
+			fei.yaw_roll_fraction = 0;
+		}
+		else
+		if(fei.yaw_roll_fraction < division2)
+		{
+			// scale it to 0 ... halfway
+			fei.yaw_roll_fraction = (fei.yaw_roll_fraction - division1) * 
+				(halfway - 0) /
+				(division2 - division1) +
+				0;
+		}
+		else
+		if(fei.yaw_roll_fraction < division4)
+		{
+			// always halfway
+			fei.yaw_roll_fraction = halfway;
+		}
+		else
+		if(fei.yaw_roll_fraction < division5)
+		{
+			// scale it to halfway ... FRACTION
+			fei.yaw_roll_fraction = (fei.yaw_roll_fraction - division4) * 
+				(FRACTION - halfway) /
+				(division5 - division4) +
+				halfway;
+		}
+		else
+		{
+			fei.yaw_roll_fraction = FRACTION;
+		}
 
 // DEBUG
 //yaw_roll_fraction = FRACTION * 2 / 3;
@@ -356,10 +444,10 @@ void do_feedback()
 				gyro_x, 
 				0);
 
-			int total_x_step2 = ((FRACTION - yaw_roll_fraction) * top_x_step2 +
-				yaw_roll_fraction * back_x_step2) / FRACTION;
-			int total_z_step2 = ((FRACTION - yaw_roll_fraction) * top_z_step2 +
-				yaw_roll_fraction * back_z_step2) / FRACTION;;
+			int total_x_step2 = ((FRACTION - fei.yaw_roll_fraction) * top_x_step2 +
+				fei.yaw_roll_fraction * back_x_step2) / FRACTION;
+			int total_z_step2 = ((FRACTION - fei.yaw_roll_fraction) * top_z_step2 +
+				fei.yaw_roll_fraction * back_z_step2) / FRACTION;;
 
 #ifndef TEST_KINEMATICS
 
@@ -372,14 +460,41 @@ void do_feedback()
 		else
 		{
 // use IMU feedback
+// schedule gains based on handle angle
+			ipd_t top_x;
+			ipd_t top_z;
+			ipd_t back_x;
+			ipd_t back_z;
+			int fraction45 = abs_fixed(fei.yaw_roll_fraction - FRACTION / 2) * 2;
+			
+
+			blend_ipd(&top_x, 
+				&fei.top_x45,
+				&fei.top_x,
+				fraction45);
+			blend_ipd(&top_z, 
+				&fei.top_z45,
+				&fei.top_z,
+				fraction45);
+			blend_ipd(&back_x, 
+				&fei.back_x45,
+				&fei.back_x,
+				fraction45);
+			blend_ipd(&back_z, 
+				&fei.back_z45,
+				&fei.back_z,
+				fraction45);
+
+
+
 	// get motor steps for heading motor on top
 	// effect of roll motor on roll
-			int top_x_step = get_step(&fei.top_x, 
+			int top_x_step = get_step(&top_x, 
 				x_error, 
 				-gyro_x, 
 				-get_derivative(&fei.roll_accel));
 	// effect of yaw motor on yaw
-			int top_z_step = get_step(&fei.top_z, 
+			int top_z_step = get_step(&top_z, 
 				-z_error, 
 				gyro_z, 
 				get_derivative(&fei.heading_accel));
@@ -387,24 +502,24 @@ void do_feedback()
 
 	// get motor steps if heading motor behind camera
 	// effect of roll motor on yaw
-			int back_x_step = get_step(&fei.back_x, 
+			int back_x_step = get_step(&back_x, 
 				z_error, 
 				-gyro_z, 
 				-get_derivative(&fei.heading_accel));
 	// effect of yaw motor on roll
-			int back_z_step = get_step(&fei.back_z, 
+			int back_z_step = get_step(&back_z, 
 				-x_error, 
 				gyro_x, 
 				get_derivative(&fei.roll_accel));
 
-			int total_x_step = ((FRACTION - yaw_roll_fraction) * top_x_step +
-				yaw_roll_fraction * back_x_step) / FRACTION;
-			int total_z_step = ((FRACTION - yaw_roll_fraction) * top_z_step +
-				yaw_roll_fraction * back_z_step) / FRACTION;
+			int total_x_step = ((FRACTION - fei.yaw_roll_fraction) * top_x_step +
+				fei.yaw_roll_fraction * back_x_step) / FRACTION;
+			int total_z_step = ((FRACTION - fei.yaw_roll_fraction) * top_z_step +
+				fei.yaw_roll_fraction * back_z_step) / FRACTION;
 
 
 	// scale feedback as it approaches 45'.  failed
-	//		int feedback_scale = abs_fixed(yaw_roll_fraction - FRACTION / 2) +
+	//		int feedback_scale = abs_fixed(fei.yaw_roll_fraction - FRACTION / 2) +
 	//			FRACTION / 2;
 	//		total_x_step = total_x_step * feedback_scale / FRACTION;
 	//		total_z_step = total_z_step * feedback_scale / FRACTION;
@@ -417,32 +532,37 @@ void do_feedback()
 			fei.x_phase += total_x_step;
 			fei.z_phase += total_z_step;
 #endif
+
+
+
+
 		}
-
-
-		FIX_PHASE(fei.x_phase);
-		FIX_PHASE(fei.z_phase);
-
 
 if(mane_time - fei.debug_time >= HZ / 10)
 {
 fei.debug_time = mane_time;
 TRACE
 //print_fixed(&uart, fei.current_roll);
-print_fixed(&uart, fei.current_roll2);
-print_fixed(&uart, fei.current_pitch2);
+//print_fixed(&uart, fei.current_roll2);
+//print_fixed(&uart, fei.current_pitch2);
+print_fixed(&uart, fei.handle_angle);
+//print_fixed(&uart, yaw_roll_fraction1);
+print_fixed(&uart, fei.yaw_roll_fraction);
 
 //print_number(&uart, fei.hall1); // roll motor
 //print_fixed(&uart, fei.current_heading);
-//print_fixed(&uart, yaw_roll_fraction);
 //print_number(&uart, fei.hall2);
 //print_fixed(&uart, test_phase);
 //print_fixed(&uart, fei.y_phase);
 //print_fixed(&uart, y_error);
-//print_fixed(&uart, yaw_roll_fraction);
 //print_number(&uart, fei.hall0);
 //print_number(&uart, fei.hall2); // pitch motor
 }
+
+		FIX_PHASE(fei.x_phase);
+		FIX_PHASE(fei.z_phase);
+
+
 
 // write the yaw motor directly from board 0
 		motor.phase = fei.z_phase;

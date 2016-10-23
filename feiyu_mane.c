@@ -316,7 +316,8 @@ void main()
 	fei.gyro_x_max = -65535;
 	fei.gyro_y_max = -65535;
 	fei.gyro_z_max = -65535;
-	fei.target_roll = -5 * FRACTION;
+// rotate the IMU rather than this
+	fei.target_roll = 0;
 	fei.target_pitch = 0;
 	fei.target_heading = 0;
 	init_feedback();
@@ -388,10 +389,6 @@ void main()
 				motor_parsing_function(c);
 			}
 		}
-
-
-
-
 	}
 #else // BOARD2
 
@@ -475,8 +472,15 @@ void main()
 			{
 				case '2':
 				{
-//					fei.target_heading -= FRACTION;
-					fei.target_heading -= FRACTION / 4;
+					if(fei.yaw_roll_fraction < FRACTION / 4)
+					{
+						fei.target_heading -= FRACTION;
+					}
+					else
+					{
+						fei.target_heading -= FRACTION / 4;
+					}
+					
 					if(fei.target_heading < -180 * FRACTION)
 					{
 						fei.target_heading += 360 * FRACTION;
@@ -486,8 +490,15 @@ void main()
 			
 				case '1':
 				{
-//					fei.target_heading += FRACTION;
-					fei.target_heading += FRACTION / 4;
+					if(fei.yaw_roll_fraction < FRACTION / 4)
+					{
+						fei.target_heading += FRACTION;
+					}
+					else
+					{
+						fei.target_heading += FRACTION / 4;
+					}
+					
 					if(fei.target_heading > 180 * FRACTION)
 					{
 						fei.target_heading -= 360 * FRACTION;

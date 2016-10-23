@@ -120,6 +120,7 @@ typedef struct
 {
 	int test_step;
 	int test_period;
+	int test_scale;
 
 	int hall0; // yaw motor
 	int hall1; // roll motor
@@ -129,7 +130,6 @@ typedef struct
 #ifdef BOARD0
 
 	int debug_time;
-	int test_scale;
 // for dowmsampling the accel readings
 	int gyro_count;
 // for calibrating the IMU
@@ -176,6 +176,8 @@ typedef struct
 // absolute angles of the motors detected by hall effect sensor
 	int current_roll2;
 	int current_pitch2;
+	int handle_angle;
+	int yaw_roll_fraction;
 
 	int target_roll;
 	int target_pitch;
@@ -193,6 +195,12 @@ typedef struct
 // heading motor behind camera
 	ipd_t back_x;
 	ipd_t back_z;
+
+// handle at 45 deg
+	ipd_t top_x45;
+	ipd_t top_z45;
+	ipd_t back_x45;
+	ipd_t back_z45;
 
 // feedback based on hall effect sensors
 	ipd_t top_y2;

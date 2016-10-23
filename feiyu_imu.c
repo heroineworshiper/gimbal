@@ -13,6 +13,9 @@
 #ifdef BOARD0
 
 
+#define ROLL_OFFSET (5 * FRACTION)
+
+
 #define GYRO_RATIO (IMU_HZ / 50)
 #define ACCEL_BANDWIDTH 16
 #define GYRO_CENTER_MAX 200
@@ -197,11 +200,11 @@ void do_ahrs(unsigned char *imu_buffer)
 		}
 
 // predict gyro accumulation
-		fei.current_roll = fei.abs_roll;
+		fei.current_roll = fei.abs_roll + ROLL_OFFSET;
 		fei.current_pitch = fei.abs_pitch;
 		fei.current_heading = 0;
-		fei.gyro_roll = fei.current_roll * ANGLE_TO_GYRO;
-		fei.gyro_pitch = fei.current_pitch * ANGLE_TO_GYRO;
+		fei.gyro_roll = fei.abs_roll * ANGLE_TO_GYRO;
+		fei.gyro_pitch = fei.abs_pitch * ANGLE_TO_GYRO;
 		fei.gyro_heading = 0;
 	}
 	else
@@ -231,7 +234,7 @@ void do_ahrs(unsigned char *imu_buffer)
 		}
 	
 
-		fei.current_roll = fei.gyro_roll / ANGLE_TO_GYRO;
+		fei.current_roll = fei.gyro_roll / ANGLE_TO_GYRO + ROLL_OFFSET;
 		fei.current_pitch = fei.gyro_pitch / ANGLE_TO_GYRO;
 		fei.current_heading = fei.gyro_heading / ANGLE_TO_GYRO;
 		fei.current_roll = fix_angle(fei.current_roll);
@@ -321,6 +324,7 @@ print_text(&uart, "ACK failure");
 
     		/* Clear AF Flag */
     		__HAL_I2C_CLEAR_FLAG(&I2cHandle, I2C_FLAG_AF);
+			imu.error = 1;
 			return 1;
 		}
 	}
@@ -342,6 +346,7 @@ void i2c_read_device(unsigned char reg, int bytes)
 		imu.i2c_buffer[i] = 0xff;
 	}
 
+	imu.error = 0;
 	imu.reg = reg;
 	imu.bytes = bytes;
 	imu.current_byte = 0;
@@ -370,6 +375,8 @@ void i2c_read_device(unsigned char reg, int bytes)
 	{
 	}
 	
+	if(imu.error) return;
+	
 	while(!__HAL_I2C_GET_FLAG(&I2cHandle, I2C_FLAG_TXE))
 	{
 	}
@@ -395,6 +402,7 @@ void i2c_read_device(unsigned char reg, int bytes)
 	{
 	}
 	
+	if(imu.error) return;
 		
 	if(imu.bytes == 1)
 	{
@@ -450,6 +458,7 @@ void i2c_read_device(unsigned char reg, int bytes)
 
 void i2c_write_device(unsigned char reg, unsigned char value)
 {
+	imu.error = 0;
 	imu.reg = reg;
 	imu.bytes = 1;
 	imu.current_byte = 0;
@@ -477,6 +486,8 @@ void i2c_write_device(unsigned char reg, unsigned char value)
 	{
 	}
 	
+	if(imu.error) return;
+
 	while(!__HAL_I2C_GET_FLAG(&I2cHandle, I2C_FLAG_TXE))
 	{
 	}
