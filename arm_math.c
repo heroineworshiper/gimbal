@@ -315,14 +315,6 @@ int cos_fixed(int angle)
 	return sin_fixed(angle + 90 * FRACTION);
 }
 
-// altitude in mm * FRACTION
-// pixels in pixels
-// returns mm * FRACTION
-int pixels_to_distance(int pixels, int altitude)
-{
-	
-}
-
 
 
 void euler_dc(matrix_t *dst, vector_t *euler)
@@ -379,12 +371,6 @@ void transpose_matrix(matrix_t *dst,
 {
 	int i, j;
 
-	if(dst->rows != src->columns || dst->columns != src->rows)
-	{
-		TRACE
-		print_text(&uart, "transpose_matrix: size mismatch");
-		return;
-	}
 
 	for(i = 0; i < src->rows; i++)
 	{
@@ -400,12 +386,6 @@ void multiply_matrix_vector(vector_t *dst, matrix_t *mat, vector_t *vec)
 	int n = mat->rows;
 	int m = mat->columns;
 
-	if(m != vec->size || dst->size != n)
-	{
-		TRACE
-		print_text(&uart, "multiply_matrix_vector: size mismatch");
-		return;
-	}
 
 	for(i = 0; i < n; i++)
 	{

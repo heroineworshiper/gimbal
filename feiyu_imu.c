@@ -256,9 +256,9 @@ void do_ahrs(unsigned char *imu_buffer)
 	fei.imu_count++;
 
 //	if(mane_time - fei.debug_time > HZ / 10)
-	if(mane_time - fei.debug_time >= HZ)
-	{
-		TRACE
+//	if(mane_time - fei.debug_time >= HZ)
+//	{
+//		TRACE
 //		print_number(&uart, fei.gyro_x);
 //		print_number(&uart, fei.gyro_y);
 //		print_number(&uart, fei.gyro_z);
@@ -276,12 +276,12 @@ void do_ahrs(unsigned char *imu_buffer)
 //		print_fixed(&uart, fei.current_roll - fei.abs_roll);
 //	    print_fixed(&uart, fei.current_pitch - fei.abs_pitch);
 
-		print_text(&uart, "fei.imu_count=");
-	    print_number(&uart, fei.imu_count);
+//		print_text(&uart, "fei.imu_count=");
+//	    print_number(&uart, fei.imu_count);
 
-		fei.debug_time = mane_time;
-		fei.imu_count = 0;
-	}
+//		fei.debug_time = mane_time;
+//		fei.imu_count = 0;
+//	}
 	}
 
 }

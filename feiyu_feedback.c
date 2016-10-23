@@ -326,8 +326,8 @@ void do_feedback()
 // not implemented
 #define PITCH_DOWN 21000
 
-#define ROLL_VERTICAL 21000
-#define ROLL_MIN 19000
+#define ROLL_VERTICAL 21175
+#define ROLL_MIN 19200
 #define ROLL_MAX 23600
 
 // pitch servo in degrees
@@ -335,7 +335,7 @@ void do_feedback()
 			(PITCH_UP - PITCH_VERTICAL);
 		CLAMP(fei.current_pitch2, 0, 90 * FRACTION);
 // roll servo in degrees
-		fei.current_roll2 = (ROLL_VERTICAL - fei.hall1) * 50 * FRACTION / 
+		fei.current_roll2 = (ROLL_VERTICAL - fei.hall1) * 45 * FRACTION / 
 			(ROLL_VERTICAL - ROLL_MIN);
 
 
@@ -538,10 +538,10 @@ void do_feedback()
 
 		}
 
-//if(mane_time - fei.debug_time >= HZ / 10)
-//{
-//fei.debug_time = mane_time;
-//TRACE
+if(mane_time - fei.debug_time >= HZ / 10)
+{
+fei.debug_time = mane_time;
+TRACE
 //print_fixed(&uart, fei.current_roll);
 //print_fixed(&uart, fei.current_roll2);
 //print_fixed(&uart, fei.current_pitch2);
@@ -557,7 +557,7 @@ void do_feedback()
 //print_fixed(&uart, y_error);
 //print_number(&uart, fei.hall0);
 //print_number(&uart, fei.hall2); // pitch motor
-//}
+}
 
 		FIX_PHASE(fei.x_phase);
 		FIX_PHASE(fei.z_phase);
