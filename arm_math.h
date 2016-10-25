@@ -78,10 +78,16 @@ void reset_derivative(derivative_t *ptr);
 vector_t (name); \
 (name).size = (size_);
 
+#define INIT_VECTOR(name, size_) \
+(name).size = (size_);
 
 // For creating a new matrix
 #define NEW_MATRIX(name, rows_, columns_) \
 matrix_t (name); \
+(name).rows = (rows_); \
+(name).columns = (columns_);
+
+#define INIT_MATRIX(name, rows_, columns_) \
 (name).rows = (rows_); \
 (name).columns = (columns_);
 
@@ -111,6 +117,7 @@ void distance_angle(int *distance,
 	int y1,
 	int x2, 
 	int y2);
+void multiply_matrix_vector(vector_t *dst, matrix_t *mat, vector_t *vec);
 
 
 #endif

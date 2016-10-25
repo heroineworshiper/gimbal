@@ -184,32 +184,27 @@ typedef struct
 	int target_heading;
 
 // feedback based on IMU
-// heading motor on top
-// effect of roll motor on roll
-	ipd_t top_x;
-// effect of pitch motor on pitch
-	ipd_t top_y;
-// effect of yaw motor on yaw
-	ipd_t top_z;
-
-// heading motor behind camera
-	ipd_t back_x;
-	ipd_t back_z;
+	ipd_t roll_ipd;
+	ipd_t pitch_ipd;
+	ipd_t heading_ipd;
 
 // handle at 45 deg
-	ipd_t top_x45;
-	ipd_t top_z45;
-	ipd_t back_x45;
-	ipd_t back_z45;
+//	ipd_t roll_ipd45;
+//	ipd_t heading_ipd45;
+
+// handle at 90 deg
+//	ipd_t roll_ipd90;
+//	ipd_t heading_ipd90;
 
 // feedback based on hall effect sensors
-	ipd_t top_y2;
-	ipd_t top_x2;
-	ipd_t top_z2;
-	ipd_t back_x2;
-	ipd_t back_z2;
-	
-	
+	ipd_t hall_pitch_ipd;
+	ipd_t hall_roll_ipd;
+	ipd_t hall_heading_ipd;
+
+//	ipd_t hall_roll_ipd90;
+//	ipd_t hall_heading_ipd90;
+
+
 // the phases for all 3 motors.
 	int x_phase;
 	int y_phase;
@@ -222,6 +217,9 @@ typedef struct
 	derivative_t heading_accel;
 	int heading_accel_data[HEADING_D_SIZE];
 
+	matrix_t rotation_matrix;
+	vector_t rotation_vector;
+	vector_t rotation_result;
 
 
 #endif // BOARD0

@@ -61,6 +61,8 @@ matrix_t (name); \
 #define MATRIX_ENTRY(matrix, row, column) ((matrix).values[(row)][(column)])
 
 #define SQR(x) ((x) * (x))
+#define TO_DEG(x) ((x) * 360 / 2 / M_PI)
+#define TO_RAD(x) ((x) * 2 * M_PI / 360)
 
 void unity_matrix(matrix_t *matrix)
 {
@@ -318,9 +320,129 @@ void handle_table()
 
 
 
+void apply_rotation(vector_t *result, 
+	vector_t *point,
+	float roll, 
+	float pitch, 
+	float heading)
+{
+	NEW_MATRIX(pitch_matrix, 3, 3);
+	NEW_MATRIX(roll_matrix, 3, 3);
+	NEW_MATRIX(heading_matrix, 3, 3);
+	NEW_VECTOR(temp1, 3);
+	NEW_VECTOR(temp2, 3);
+
+
+	unity_matrix(&pitch_matrix);
+	unity_matrix(&roll_matrix);
+	unity_matrix(&heading_matrix);
+
+	MATRIX_ENTRY(pitch_matrix, 1, 1) = cos(pitch);
+	MATRIX_ENTRY(pitch_matrix, 1, 2) = sin(pitch);
+	MATRIX_ENTRY(pitch_matrix, 2, 1) = -sin(pitch);
+	MATRIX_ENTRY(pitch_matrix, 2, 2) = cos(pitch);
+
+	MATRIX_ENTRY(roll_matrix, 0, 0) = cos(roll);
+	MATRIX_ENTRY(roll_matrix, 0, 1) = sin(roll);
+	MATRIX_ENTRY(roll_matrix, 1, 0) = -sin(roll);
+	MATRIX_ENTRY(roll_matrix, 1, 1) = cos(roll);
+
+	MATRIX_ENTRY(heading_matrix, 0, 0) = cos(heading);
+	MATRIX_ENTRY(heading_matrix, 0, 2) = -sin(heading);
+	MATRIX_ENTRY(heading_matrix, 2, 0) = sin(heading);
+	MATRIX_ENTRY(heading_matrix, 2, 2) = cos(heading);
+
+	multiply_matrix_vector(&temp1, &heading_matrix, point);
+	multiply_matrix_vector(&temp2, &roll_matrix, &temp1);
+	multiply_matrix_vector(result, &pitch_matrix, &temp2);
+}
+
+void mixing_table()
+{
+	NEW_VECTOR(point1, 3);
+	NEW_VECTOR(point2, 3);
+	NEW_VECTOR(point3, 3);
+	NEW_VECTOR(point4, 3);
+	NEW_VECTOR(point5, 3);
+	NEW_VECTOR(new_vector, 3);
+	NEW_VECTOR(old_vector, 3);
+
+	float pitch = 90 * 2 * M_PI / 360;
+	float roll = 0;
+	float heading = 0;
+
+
+	for(pitch = 0; pitch < TO_RAD(90); pitch += TO_RAD(1))
+	{
+// create vector in a known rotation direction
+		float length = 100;
+		point1.x = 0;
+		point1.y = 0;
+		point1.z = length;
+
+		apply_rotation(&point2, 
+			&point1,
+			0, 
+			TO_RAD(5), 
+			0);
+
+	// rotate it by the angle
+		apply_rotation(&point3, 
+			&point1,
+			roll, 
+			pitch, 
+			heading);
+		apply_rotation(&point4, 
+			&point2,
+			roll, 
+			pitch, 
+			heading);
+
+	// get the rotation direction of the vector
+		subtract_vectors(&new_vector, &point4, &point3);
+		subtract_vectors(&old_vector, &point2, &point1);
+
+// 		printf("mixing_table %d old_vector=%f %f %f\n", 
+// 			__LINE__, 
+// 			old_vector.x,
+// 			old_vector.y,
+// 			old_vector.z);
+// 		printf("mixing_table %d new_vector=%f %f %f\n", 
+// 			__LINE__, 
+// 			new_vector.x,
+// 			new_vector.y,
+// 			new_vector.z);
+// 
+// 
+// 		printf("mixing_table %d old_angles=%f %f %f\n", 
+// 			__LINE__, 
+// 			TO_DEG(atan2(old_vector.x, length)),
+// 			TO_DEG(atan2(old_vector.y, length)),
+// 			TO_DEG(atan2(old_vector.z, length)));
+// 		printf("mixing_table %d new_angles=%f %f %f\n", 
+// 			__LINE__, 
+// 			TO_DEG(atan2(new_vector.x, length)),
+// 			TO_DEG(atan2(new_vector.y, length)),
+// 			TO_DEG(atan2(new_vector.z, length)));
+
+		printf("mixing_table %d ratio=%f\n", 
+			__LINE__, 
+			atan2(new_vector.z, length) / atan2(old_vector.y, length));
+	}
+}
+
+
+
+
 int main()
 {
 //	sin_table();
-	handle_table();
+//	handle_table();
+	mixing_table();
 }
+
+
+
+
+
 

@@ -316,7 +316,7 @@ int cos_fixed(int angle)
 }
 
 
-
+#if 0
 void euler_dc(matrix_t *dst, vector_t *euler)
 {
 	int	cpsi;
@@ -379,6 +379,39 @@ void transpose_matrix(matrix_t *dst,
 			MATRIX_ENTRY(*dst, j, i) = src_row[j];
 	}
 }
+
+
+
+void distance_angle(int *distance, 
+	int *angle, 
+	int x1,
+	int y1,
+	int x2, 
+	int y2)
+{
+	*distance = 0;
+	*angle = 0;
+
+	if(x1 == x2 && y1 == y2)
+	{
+		return;
+	}
+
+	*angle = atan2_fixed(y2 - y1, x2 - x1);
+	if(abs_fixed(x2 - x1) > abs_fixed(y2 - y1))
+	{
+		*distance = (x2 - x1) * FRACTION / cos_fixed(*angle);
+	}
+	else
+	{
+		*distance = (y2 - y1) * FRACTION / sin_fixed(*angle);
+	}
+	
+}
+#endif // 0
+
+
+
 
 void multiply_matrix_vector(vector_t *dst, matrix_t *mat, vector_t *vec)
 {
@@ -451,32 +484,6 @@ int fix_angle(int angle)
 	return angle;
 }
 
-void distance_angle(int *distance, 
-	int *angle, 
-	int x1,
-	int y1,
-	int x2, 
-	int y2)
-{
-	*distance = 0;
-	*angle = 0;
-
-	if(x1 == x2 && y1 == y2)
-	{
-		return;
-	}
-
-	*angle = atan2_fixed(y2 - y1, x2 - x1);
-	if(abs_fixed(x2 - x1) > abs_fixed(y2 - y1))
-	{
-		*distance = (x2 - x1) * FRACTION / cos_fixed(*angle);
-	}
-	else
-	{
-		*distance = (y2 - y1) * FRACTION / sin_fixed(*angle);
-	}
-	
-}
 
 
 // Zero derivative structure
