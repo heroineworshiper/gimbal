@@ -10,6 +10,9 @@
 #include "stm32f1xx_hal_rcc.h"
 #include "arm_math.h"
 
+
+imu_t imu;
+
 #ifdef BOARD0
 
 
@@ -26,7 +29,13 @@
 // make it infinity to test the gyros
 //#define BLEND_DOWNSAMPLE 0x7fffffff
 
-#define ATTITUDE_BLEND (FRACTION / 4)
+// normal blending
+#define ATTITUDE_BLEND 256
+// when the gyros saturate
+#define ATTITUDE_BLEND2 64
+// time to use ATTITUDE_BLEND2
+#define RECOVER_TIME (5 * IMU_HZ / BLEND_DOWNSAMPLE)
+
 #define ANGLE_TO_GYRO (500 * IMU_HZ / 1000)
 
 
@@ -230,20 +239,35 @@ void do_ahrs(unsigned char *imu_buffer)
 		fei.gyro_pitch = fix_gyro_angle(fei.gyro_pitch);
 		fei.gyro_heading = fix_gyro_angle(fei.gyro_heading);
 		
+		
+// detect overload
+		if(ABS(fei.gyro_x) >= 32767 ||
+			ABS(fei.gyro_y) >= 32767 ||
+			ABS(fei.gyro_z) >= 32767)
+		{
+			imu.recover_count = RECOVER_TIME;
+		}
 
 		fei.blend_counter++;
 		if(fei.blend_counter >= BLEND_DOWNSAMPLE)
 		{
+			int blend_factor = ATTITUDE_BLEND;
+			if(imu.recover_count > 0)
+			{
+				blend_factor = ATTITUDE_BLEND2;
+				imu.recover_count--;
+			}
+
  			fei.blend_counter = 0;
 			int error = get_angle_change_fixed(fei.gyro_roll / ANGLE_TO_GYRO, 
 				fei.abs_roll);
-			fei.gyro_roll += error * ANGLE_TO_GYRO / ATTITUDE_BLEND;
+			fei.gyro_roll += error * ANGLE_TO_GYRO / blend_factor;
 
 			error = get_angle_change_fixed(fei.gyro_pitch / ANGLE_TO_GYRO, 
 				fei.abs_pitch);
-			fei.gyro_pitch += error * ANGLE_TO_GYRO / ATTITUDE_BLEND;
+			fei.gyro_pitch += error * ANGLE_TO_GYRO / blend_factor;
 		}
-	
+
 
 		fei.current_roll = fei.gyro_roll / ANGLE_TO_GYRO + ROLL_OFFSET;
 		fei.current_pitch = fei.gyro_pitch / ANGLE_TO_GYRO;
@@ -302,7 +326,6 @@ void do_ahrs(unsigned char *imu_buffer)
 #define I2C_ADDRESS (0x68 << 1)
 
 I2C_HandleTypeDef I2cHandle;
-imu_t imu;
 
 
 

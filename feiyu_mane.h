@@ -88,7 +88,7 @@
 // frequency of the mane timer
 #define HZ 1000
 // frequency of the IMU, determined by sample rate divider & CPU load
-#define IMU_HZ 1872
+#define IMU_HZ 1888
 
 
 
@@ -136,10 +136,12 @@ typedef struct
 	int total_gyro;
 // total IMU packets for testing
 	int imu_count;
+
+// accel readings * FRACTION after lowpass filtering
 	int accel_x;
 	int accel_y;
 	int accel_z;
-// the raw gyro readings
+// the raw gyro readings from the chip
 	int gyro_x;
 	int gyro_y;
 	int gyro_z;

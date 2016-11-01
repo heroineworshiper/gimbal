@@ -1,9 +1,11 @@
 #ifndef FEIYU_IMU
 #define FEIYU_IMU
 
+#include "feiyu_mane.h"
 
 typedef struct
 {
+#ifdef BOARD2
 	void (*imu_function)();
 
 // I2c variables
@@ -19,6 +21,13 @@ typedef struct
 	int count2;
 	int got_readout;
 	int initialized;
+#endif
+
+#ifdef BOARD0
+// use more blending to recover from a gyro saturation
+	int recover_count;
+#endif
+
 } imu_t;
 
 extern imu_t imu;

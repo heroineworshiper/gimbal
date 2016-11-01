@@ -155,8 +155,7 @@ void init_feedback()
 	
 
 
-// handle at 0 deg
-
+// feedback using IMU
 	init_ipd(&fei.roll_ipd,  
 		FIXED(1),   // I
 		FIXED(0.25),   // P
@@ -173,50 +172,17 @@ void init_feedback()
 
 
 
-// handle at 45 deg
-// 	init_ipd(&fei.roll_ipd45,  
-// 		FIXED(0.5),   // I
-// //		FIXED(1),  // I
-// 		FIXED(0.25),   // P
-// 		FIXED(2),   // D
-// 		FIXED(255), 
-// 		FIXED(255));
-// 	init_ipd(&fei.heading_ipd45, 
-// 		FIXED(0.5),  // I
-// //		FIXED(1),  // I
-// 		FIXED(0.25),  // P
-// 		FIXED(2),  // D
-// 		FIXED(255),  // error limit
-// 		FIXED(255)); // rate limit
-// 
-// 
-// // handle at 90 deg
-// 	init_ipd(&fei.roll_ipd90,  
-// 		FIXED(0.5),  // I
-// //		FIXED(1),  // I
-// 		FIXED(0.25),  // P
-// 		FIXED(0.5),  // D 
-// 		FIXED(255), 
-// 		FIXED(255));
-// 	init_ipd(&fei.heading_ipd90, 
-// 		FIXED(1),  // I
-// 		FIXED(0.25),  // P
-// 		FIXED(1),  // D
-// 		FIXED(255),  // error limit
-// 		FIXED(255)); // rate limit
-
-
 
 // feedback using hall sensors
 	init_ipd(&fei.hall_pitch_ipd, 
 		FIXED(10),  // I
-		FIXED(1),  // P
+		FIXED(2),  // P
 		0,  // D
 		FIXED(60),  // error limit
 		FIXED(60)); // rate limit
 	init_ipd(&fei.hall_roll_ipd, 
 		FIXED(10),  // I
-		FIXED(1),  // P
+		FIXED(2),  // P
 		0,  // D
 		FIXED(60),  // error limit
 		FIXED(60)); // rate limit
@@ -226,18 +192,6 @@ void init_feedback()
 		0,  // D
 		FIXED(60),  // error limit
 		FIXED(60)); // rate limit
-// 	init_ipd(&fei.hall_roll_ipd90, 
-// 		FIXED(10),  // I
-// 		FIXED(1),  // P
-// 		0,  // D
-// 		FIXED(60),  // error limit
-// 		FIXED(60)); // rate limit
-// 	init_ipd(&fei.hall_heading_ipd90, 
-// 		FIXED(10),  // I
-// 		FIXED(1),  // P
-// 		0,  // D
-// 		FIXED(60),  // error limit
-// 		FIXED(60)); // rate limit
 }
 
 
@@ -545,13 +499,18 @@ void do_feedback()
 
 		}
 
-if(mane_time - fei.debug_time >= HZ / 10)
+if(mane_time - fei.debug_time >= HZ)
 {
 fei.debug_time = mane_time;
 // blink the LED
 send_uart(&uart, ".", 1);
 
-//TRACE
+TRACE
+print_text(&uart, "imu.recover_count=");
+print_number(&uart, imu.recover_count);
+//print_text(&uart, "fei.imu_count=");
+//print_number(&uart, fei.imu_count);
+//fei.imu_count = 0;
 
 //print_fixed(&uart, fei.current_roll);
 //print_fixed(&uart, fei.current_roll2);
