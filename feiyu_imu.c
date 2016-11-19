@@ -1,3 +1,26 @@
+
+/*
+ * Feiyu gimbal hack
+ *
+ * Copyright (C) 2016 Adam Williams <broadcast at earthling dot net>
+ * 
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * 
+ */
+
+
 // MPU6050 driver for the Feiyu
 
 #include "feiyu_mane.h"
@@ -15,8 +38,10 @@ imu_t imu;
 
 #ifdef BOARD0
 
-
+// must be level so it doesn't tilt when panning
+// really need variable roll/pitch 
 #define ROLL_OFFSET FIXED(5)
+#define PITCH_OFFSET FIXED(2.5)
 
 
 #define GYRO_RATIO (IMU_HZ / 50)
@@ -85,6 +110,8 @@ void do_ahrs(unsigned char *imu_buffer)
 		{
 			fei.abs_roll = atan2_fixed(fei.accel_x / FRACTION, fei.accel_z / FRACTION);
 			fei.abs_pitch = -atan2_fixed(-fei.accel_y / FRACTION, fei.accel_z / FRACTION);
+			fei.abs_roll += ROLL_OFFSET;
+			fei.abs_pitch += PITCH_OFFSET;
 			fei.abs_roll = fix_angle(fei.abs_roll);
 			fei.abs_pitch = fix_angle(fei.abs_pitch);
 		}
@@ -220,7 +247,7 @@ void do_ahrs(unsigned char *imu_buffer)
 		}
 
 // predict gyro accumulation
-		fei.current_roll = fei.abs_roll + ROLL_OFFSET;
+		fei.current_roll = fei.abs_roll;
 		fei.current_pitch = fei.abs_pitch;
 		fei.current_heading = 0;
 		fei.gyro_roll = fei.abs_roll * ANGLE_TO_GYRO;
@@ -269,7 +296,7 @@ void do_ahrs(unsigned char *imu_buffer)
 		}
 
 
-		fei.current_roll = fei.gyro_roll / ANGLE_TO_GYRO + ROLL_OFFSET;
+		fei.current_roll = fei.gyro_roll / ANGLE_TO_GYRO;
 		fei.current_pitch = fei.gyro_pitch / ANGLE_TO_GYRO;
 		fei.current_heading = fei.gyro_heading / ANGLE_TO_GYRO;
 		fei.current_roll = fix_angle(fei.current_roll);

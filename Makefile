@@ -116,61 +116,40 @@ FEIYU_SRCS := \
 	avr_debug.h \
 	feiyu2.c \
 	feiyu_adc.c \
-	feiyu_adc.c \
+	feiyu_adc.h \
 	feiyu_bootloader.c \
 	feiyu_feedback.c \
-	feiyu_feedback.c \
-	feiyu_hall.c \
-	feiyu_hall.c \
-	feiyu_imu.c \
-	feiyu_imu.c \
-	feiyu_mane.c \
-	feiyu_mane.c \
-	feiyu_motor.c \
-	feiyu_motor.c \
-	feiyu_program.c \
-	feiyu_uart.c \
-	tables.c \
-	feiyu_adc.h \
 	feiyu_feedback.h \
 	feiyu.h \
+	feiyu_hall.c \
 	feiyu_hall.h \
+	feiyu_imu.c \
 	feiyu_imu.h \
+	feiyu_mane.c \
 	feiyu_mane.h \
+	feiyu_mane.ld \
+	feiyu_motor.c \
 	feiyu_motor.h \
 	feiyu_pid.h \
+	feiyu_program.c \
+	feiyu_uart.c \
 	feiyu_uart.h \
 	Makefile \
 	startup_stm32f103xb.s \
-	stm32f1xx_hal_adc.c \
-	stm32f1xx_hal_adc.c \
-	stm32f1xx_hal.c \
-	stm32f1xx_hal_cortex.c \
-	stm32f1xx_hal_flash.c \
-	stm32f1xx_hal_flash_ex.c \
-	stm32f1xx_hal_gpio.c \
-	stm32f1xx_hal_i2c.c \
-	stm32f1xx_hal_i2c.c \
-	stm32f1xx_hal_rcc.c \
-	stm32f1xx_hal_rcc_ex.c \
-	stm32f1xx_hal_rcc_ex.c \
-	stm32f1xx_hal_spi.c \
-	stm32f1xx_hal_spi.c \
-	stm32f1xx_hal_tim.c \
-	stm32f1xx_hal_tim.c \
-	stm32f1xx_hal_tim_ex.c \
-	stm32f1xx_hal_tim_ex.c \
-	stm32f1xx_hal_uart.c \
-	system_stm32f1xx.c \
+	stm32f103 \
+	STM32F103XB_FLASH.ld \
 	stm32f103xb.h \
 	stm32f1xx.h \
+	stm32f1xx_hal_adc.c \
 	stm32f1xx_hal_adc_ex.h \
 	stm32f1xx_hal_adc.h \
+	stm32f1xx_hal.c \
 	stm32f1xx_hal_can_ex.h \
 	stm32f1xx_hal_can.h \
 	stm32f1xx_hal_cec.h \
 	stm32f1xx_hal_conf.h \
 	stm32f1xx_hal_conf_template.h \
+	stm32f1xx_hal_cortex.c \
 	stm32f1xx_hal_cortex.h \
 	stm32f1xx_hal_crc.h \
 	stm32f1xx_hal_dac_ex.h \
@@ -179,12 +158,16 @@ FEIYU_SRCS := \
 	stm32f1xx_hal_dma_ex.h \
 	stm32f1xx_hal_dma.h \
 	stm32f1xx_hal_eth.h \
+	stm32f1xx_hal_flash.c \
+	stm32f1xx_hal_flash_ex.c \
 	stm32f1xx_hal_flash_ex.h \
 	stm32f1xx_hal_flash.h \
+	stm32f1xx_hal_gpio.c \
 	stm32f1xx_hal_gpio_ex.h \
 	stm32f1xx_hal_gpio.h \
 	stm32f1xx_hal.h \
 	stm32f1xx_hal_hcd.h \
+	stm32f1xx_hal_i2c.c \
 	stm32f1xx_hal_i2c.h \
 	stm32f1xx_hal_i2s.h \
 	stm32f1xx_hal_irda.h \
@@ -195,26 +178,31 @@ FEIYU_SRCS := \
 	stm32f1xx_hal_pcd_ex.h \
 	stm32f1xx_hal_pcd.h \
 	stm32f1xx_hal_pwr.h \
+	stm32f1xx_hal_rcc.c \
+	stm32f1xx_hal_rcc_ex.c \
 	stm32f1xx_hal_rcc_ex.h \
 	stm32f1xx_hal_rcc.h \
 	stm32f1xx_hal_rtc_ex.h \
 	stm32f1xx_hal_rtc.h \
 	stm32f1xx_hal_sd.h \
 	stm32f1xx_hal_smartcard.h \
+	stm32f1xx_hal_spi.c \
 	stm32f1xx_hal_spi.h \
 	stm32f1xx_hal_sram.h \
+	stm32f1xx_hal_tim.c \
+	stm32f1xx_hal_tim_ex.c \
 	stm32f1xx_hal_tim_ex.h \
 	stm32f1xx_hal_tim.h \
+	stm32f1xx_hal_uart.c \
 	stm32f1xx_hal_uart.h \
 	stm32f1xx_hal_usart.h \
 	stm32f1xx_hal_wwdg.h \
 	stm32f1xx_ll_fsmc.h \
 	stm32f1xx_ll_sdmmc.h \
 	stm32f1xx_ll_usb.h \
+	system_stm32f1xx.c \
 	system_stm32f1xx.h \
-	stm32f103 \
-	STM32F103XB_FLASH.ld \
-	feiyu_mane.ld
+	tables.c
 
 
 
@@ -329,7 +317,9 @@ feiyu_isp: feiyu.hex
 	$(AVR_DUDE) -Uflash:w:feiyu.hex:i -Ulock:w:0x0F:m
 
 feiyu_archive:
-	tar Jcf feiyu.tar.xz $(FEIYU_SRCS)
+	mkdir /tmp/feiyu
+	cp -a $(FEIYU_SRCS) /tmp/feiyu
+	cd /tmp && tar Jcf feiyu.tar.xz feiyu
 
 
 imu.hex: imu.s hardi2c.s hardi2c.inc
