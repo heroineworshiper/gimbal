@@ -698,11 +698,11 @@ void imu_init3()
 //TRACE
 // sample rate divider
 // 2khz is as fast as the UART pipeline can go
-//	i2c_write_device(0x19, 2);
+//	i2c_write_device(0x19, 3);
 // 1khz
 //	i2c_write_device(0x19, 6);
-// 2khz
-	i2c_write_device(0x19, 3);
+// maximum
+	i2c_write_device(0x19, 0);
 //	imu.imu_function = test_status;
 	imu.initialized = 1;
 }

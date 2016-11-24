@@ -130,7 +130,7 @@ void get_imu_data(unsigned char c)
 		buffer[11] = (motor.power >> 8) & 0xff;
 
 		send_uart(&uart2, buffer, size);
-
+		flush_uart(&uart2);
 
 	#endif // BOARD0
 	}
@@ -396,15 +396,14 @@ void main()
 	while(1)
 	{
 		do_imu();
+		flush_uart(&uart);
 
 // can't simultaneously service the UART & drive I2C
 		got_motor = 0;
 		int motor_timeout = mane_time;
-		while(uart_got_output(&uart) ||
-			(!got_motor && 
-			mane_time - motor_timeout < HZ / 10))
+		while(!got_motor && 
+			mane_time - motor_timeout < HZ / 10)
 		{
-			handle_uart();
 			handle_hall();
 			if(uart_got_input(&uart))
 			{

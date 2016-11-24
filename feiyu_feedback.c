@@ -530,9 +530,9 @@ send_uart(&uart, ".", 1);
 TRACE
 print_text(&uart, "imu.recover_count=");
 print_number(&uart, imu.recover_count);
-//print_text(&uart, "fei.imu_count=");
-//print_number(&uart, fei.imu_count);
-//fei.imu_count = 0;
+print_text(&uart, "fei.imu_count=");
+print_number(&uart, fei.imu_count);
+fei.imu_count = 0;
 
 //print_fixed(&uart, fei.current_roll);
 //print_fixed(&uart, fei.current_roll2);

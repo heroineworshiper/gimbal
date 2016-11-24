@@ -58,11 +58,11 @@
 // board 2 needs a bootloader without UART3.  
 // A better way is to only enable UART3 after passthrough mode is enabled.
 // yaw board
-#define BOARD0
+//#define BOARD0
 // roll board
 //#define BOARD1
 // pitch board
-//#define BOARD2
+#define BOARD2
 
 // mane anticogging table
 //#define CALIBRATE_MOTOR
@@ -110,7 +110,7 @@
 // frequency of the mane timer
 #define HZ 1000
 // frequency of the IMU, determined by sample rate divider & CPU load
-#define IMU_HZ 1888
+#define IMU_HZ 1955
 
 
 
