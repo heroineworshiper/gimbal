@@ -484,7 +484,7 @@ void main()
 
 #ifdef BOARD0
 // user command
-//		int print_pid = 0;
+		int print_pid = 0;
 		int print_phase = 0;
 		int print_scale = 0;
 		if(uart_got_input(&uart))
@@ -589,8 +589,8 @@ void main()
 
 				case 'w':
 				{
-					fei.test_scale += 1;
-					print_scale = 1;
+					fei.roll_ipd.p += 1;
+					print_pid = 1;
 
 	//				fei.test_step++;
 	//				fei.test_period++;
@@ -609,8 +609,8 @@ void main()
 			
 				case 'z':
 				{
-					fei.test_scale -= 1;
-					print_scale = 1;
+					fei.roll_ipd.p -= 1;
+					print_pid = 1;
 
 	//				fei.test_step--;
 	//				fei.test_period--;
@@ -628,8 +628,8 @@ void main()
 			
 				case 'u':
 				{
-//					fei.top_x.d += 1;
-//					print_pid = 1;
+					fei.roll_ipd.d += 1;
+					print_pid = 1;
 
 
 	//				motor.pwm1 += 10;
@@ -649,8 +649,8 @@ void main()
 			
 				case 'n':
 				{
-//					fei.top_x.d -= 1;
-//					print_pid = 1;
+					fei.roll_ipd.d -= 1;
+					print_pid = 1;
 
 
 	//				motor.pwm1 -= 10;
@@ -673,12 +673,12 @@ void main()
 
 			}
 			
-//			if(print_pid)
-//			{
-//				TRACE
-//				print_fixed(&uart, fei.top_x.d);
-//				print_fixed(&uart, fei.top_z.d);
-//			}
+			if(print_pid)
+			{
+				TRACE
+				print_fixed(&uart, fei.roll_ipd.p);
+				print_fixed(&uart, fei.roll_ipd.d);
+			}
 			
 			if(print_phase)
 			{

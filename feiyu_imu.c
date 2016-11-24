@@ -701,7 +701,7 @@ void imu_init3()
 //	i2c_write_device(0x19, 3);
 // 1khz
 //	i2c_write_device(0x19, 6);
-// maximum
+// minimum latency
 	i2c_write_device(0x19, 0);
 //	imu.imu_function = test_status;
 	imu.initialized = 1;

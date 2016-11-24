@@ -170,8 +170,10 @@ void init_feedback()
 	
 	init_ipd(&fei.pitch_ipd,  
 		FIXED(1),   // I as high as possible
-		FIXED(0.0625),   // P as high as possible
-		FIXED(0.125),   // D as low as possible
+//		FIXED(0.0625),   // P as high as possible
+//		FIXED(0.125),   // D as high as possible
+		FIXED(0.082),   // P as high as possible
+		FIXED(0.250),   // D as high as possible
 		FIXED(255),   // error limit
 		FIXED(255));  // rate limit
 	
@@ -180,14 +182,18 @@ void init_feedback()
 // feedback using IMU
 	init_ipd(&fei.roll_ipd,  
 		FIXED(1),   // I
-		FIXED(0.25),   // P
-		FIXED(1),   // D
+//		FIXED(0.25),   // P
+//		FIXED(1.0),   // D
+		FIXED(0.4),   // P
+		FIXED(1.5),   // D
 		FIXED(255), 
 		FIXED(255));
 	init_ipd(&fei.heading_ipd, 
 		FIXED(1),  // I
-		FIXED(0.25),  // P
-		FIXED(0.5),  // D
+//		FIXED(0.25),  // P
+//		FIXED(0.5),  // D
+		FIXED(0.5),  // P
+		FIXED(2.0),  // D
 		FIXED(255),  // error limit
 		FIXED(255)); // rate limit
 
@@ -528,9 +534,9 @@ fei.debug_time = mane_time;
 send_uart(&uart, ".", 1);
 
 TRACE
-print_text(&uart, "imu.recover_count=");
+print_text(&uart, "recover_count=");
 print_number(&uart, imu.recover_count);
-print_text(&uart, "fei.imu_count=");
+print_text(&uart, "HZ=");
 print_number(&uart, fei.imu_count);
 fei.imu_count = 0;
 
