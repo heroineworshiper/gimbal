@@ -176,14 +176,19 @@ void USART1_IRQHandler()
 	TOGGLE_PIN(BLUE_LED_GPIO, 1 << BLUE_LED_PIN);
 	if((DEBUG_UART->SR & USART_FLAG_RXNE) != 0)
 	{
-		uart.input_buffer[uart.input_offset1] = DEBUG_UART->DR & (uint16_t)0x01FF;
-		uart.input_offset1++;
-		uart.total_in++;
-		if(uart.input_offset1 >= UART_INPUT_SIZE)
+		int c = DEBUG_UART->DR & (uint16_t)0x01FF;
+// this slowed it down
+//		if(uart.input_size < UART_INPUT_SIZE)
 		{
-			uart.input_offset1 = 0;
+			uart.input_buffer[uart.input_offset1] = c;
+			uart.input_offset1++;
+			uart.total_in++;
+			if(uart.input_offset1 >= UART_INPUT_SIZE)
+			{
+				uart.input_offset1 = 0;
+			}
+			uart.input_size++;
 		}
-		uart.input_size++;
 	}
 }
 
@@ -194,14 +199,19 @@ void USART3_IRQHandler()
 //	TOGGLE_PIN(BLUE_LED_GPIO, 1 << BLUE_LED_PIN);
 	if((PASS_UART->SR & USART_FLAG_RXNE) != 0)
 	{
-		uart2.input_buffer[uart2.input_offset1] = PASS_UART->DR & (uint16_t)0x01FF;
-		uart2.input_offset1++;
-		uart2.total_in++;
-		if(uart2.input_offset1 >= UART_INPUT_SIZE)
+		int c = PASS_UART->DR & (uint16_t)0x01FF;
+// this slowed it down
+//		if(uart2.input_size < UART_INPUT_SIZE)
 		{
-			uart2.input_offset1 = 0;
+			uart2.input_buffer[uart2.input_offset1] = c;
+			uart2.input_offset1++;
+			uart2.total_in++;
+			if(uart2.input_offset1 >= UART_INPUT_SIZE)
+			{
+				uart2.input_offset1 = 0;
+			}
+			uart2.input_size++;
 		}
-		uart2.input_size++;
 	}
 }
 #endif // !BOARD2
