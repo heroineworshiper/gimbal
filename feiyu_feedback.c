@@ -56,7 +56,25 @@ int get_handle_angle()
 {
 	int table_row = fei.current_roll2 / 5 / FRACTION;
 	if(table_row < 0) table_row *= -1;
-	int table_column = fei.current_pitch2 / 5 / FRACTION - 1;
+	
+	int clamped_pitch = fei.current_pitch2;
+// punt
+	if(clamped_pitch < FIXED(-80))
+	{
+		return FIXED(-80);
+	}
+	else
+	if(clamped_pitch < 0)
+	{
+		clamped_pitch = -clamped_pitch;
+	}
+	else
+	if(clamped_pitch > FIXED(90))
+	{
+		clamped_pitch = FIXED(180) - clamped_pitch;
+	}
+	
+	int table_column = clamped_pitch / 5 / FRACTION - 1;
 
 	if(table_column < 0)
 	{
@@ -68,7 +86,18 @@ int get_handle_angle()
 		return 90 * FRACTION;
 	}
 	
-	return handle_table[table_row * 17 + table_column] * FRACTION;
+	int result = handle_table[table_row * 17 + table_column] * FRACTION;
+	if(fei.current_pitch2 > FIXED(90))
+	{
+		result = FIXED(180) - result;
+	}
+	else
+	if(fei.current_pitch2 < 0)
+	{
+		result = -result;
+	}
+	
+	return result;
 }
 
 static void init_ipd(ipd_t *ptr, 
@@ -182,10 +211,10 @@ void init_feedback()
 // feedback using IMU
 	init_ipd(&fei.roll_ipd,  
 		FIXED(1),   // I
-//		FIXED(0.25),   // P
-//		FIXED(1.0),   // D
-		FIXED(0.4),   // P
-		FIXED(1.5),   // D
+		FIXED(0.25),   // P
+		FIXED(1.0),   // D
+//		FIXED(0.4),   // P
+//		FIXED(1.5),   // D
 		FIXED(255), 
 		FIXED(255));
 	init_ipd(&fei.heading_ipd, 
@@ -193,7 +222,7 @@ void init_feedback()
 //		FIXED(0.25),  // P
 //		FIXED(0.5),  // D
 		FIXED(0.5),  // P
-		FIXED(2.0),  // D
+		FIXED(1.0),  // D
 		FIXED(255),  // error limit
 		FIXED(255)); // rate limit
 
@@ -230,8 +259,22 @@ void mix_motors(int *x_step,
 	int heading_step)
 {
 	int inv_fraction = FRACTION - fei.yaw_roll_fraction;
-	*x_step = (inv_fraction * roll_step + fraction * heading_step) / FRACTION;
-	*z_step = (inv_fraction * heading_step + -fraction * roll_step) / FRACTION;
+	if(fei.handle_angle > FIXED(90))
+	{
+		*x_step = (-inv_fraction * roll_step + fraction * heading_step) / FRACTION;
+		*z_step = (-inv_fraction * heading_step + -fraction * roll_step) / FRACTION;
+	}
+	else
+	if(fei.handle_angle < 0)
+	{
+		*x_step = (inv_fraction * roll_step + -fraction * heading_step) / FRACTION;
+		*z_step = (inv_fraction * heading_step + fraction * roll_step) / FRACTION;
+	}
+	else
+	{
+		*x_step = (inv_fraction * roll_step + fraction * heading_step) / FRACTION;
+		*z_step = (inv_fraction * heading_step + -fraction * roll_step) / FRACTION;
+	}
 }
 
 // hall sensor feedback needs different signs, for some reason
@@ -242,8 +285,24 @@ void mix_motors2(int *x_step,
 	int heading_step)
 {
 	int inv_fraction = FRACTION - fei.yaw_roll_fraction;
-	*x_step = (inv_fraction * roll_step + -fraction * heading_step) / FRACTION;
-	*z_step = (inv_fraction * heading_step + fraction * roll_step) / FRACTION;
+
+	if(fei.handle_angle > FIXED(90))
+	{
+		*x_step = (inv_fraction * roll_step + -fraction * heading_step) / FRACTION;
+		*z_step = (-inv_fraction * heading_step + -fraction * roll_step) / FRACTION;
+	}
+	else
+	if(fei.handle_angle < 0)
+	{
+		*x_step = (-inv_fraction * roll_step + fraction * heading_step) / FRACTION;
+		*z_step = (inv_fraction * heading_step + fraction * roll_step) / FRACTION;
+	}
+	else
+	{
+		*x_step = (-inv_fraction * roll_step + -fraction * heading_step) / FRACTION;
+		*z_step = (inv_fraction * heading_step + -fraction * roll_step) / FRACTION;
+	}
+
 }
 
 void do_feedback()
@@ -300,19 +359,21 @@ void do_feedback()
 		{
 			
 // hall  phase
-// 23860 -360
-// 26191 0
-// 28507 360
+// 23846 -360
+// 26184 0
+// 28483 360
 // predicted motor position based on hall effect sensor
-			int test_y_phase = ((fei.hall2 - 26191) % 2323) * 
+			int test_y_phase = ((fei.hall2 - 26184) % 2319) * 
 				360 * FRACTION / 
-				2323;
+				2319;
 // required change in phase
 			int pitch_step2 = get_step(&fei.hall_pitch_ipd, 
 				y_error, 
 				-gyro_y, 
 				0);
-			fei.y_phase = test_y_phase + pitch_step2;
+#ifndef TEST_KINEMATICS
+			fei.y_phase = test_y_phase - pitch_step2;
+#endif
 		}
 		else
 // use gyro feedback
@@ -321,7 +382,9 @@ void do_feedback()
 				-y_error, 
 				gyro_y, 
 				get_derivative(&fei.pitch_accel));
-			fei.y_phase -= pitch_step;
+#ifndef TEST_KINEMATICS
+			fei.y_phase += pitch_step;
+#endif
 		}
 
 
@@ -329,23 +392,17 @@ void do_feedback()
 
 
 // ranges for the pitch sensor
-// use top values
-#define PITCH_VERTICAL 25100
-// use back values
-#define PITCH_UP 29255
-// not implemented
-#define PITCH_DOWN 21000
+#define PITCH_VERTICAL 25000
+#define PITCH_UP 20900
 
-#define ROLL_VERTICAL 21175
-#define ROLL_MIN 19200
-#define ROLL_MAX 23600
+#define ROLL_VERTICAL 29400
+#define ROLL_MIN 27280
 
 // pitch servo in degrees
 		fei.current_pitch2 = (fei.hall2 - PITCH_VERTICAL) * 90 * FRACTION / 
 			(PITCH_UP - PITCH_VERTICAL);
-		CLAMP(fei.current_pitch2, 0, 90 * FRACTION);
 // roll servo in degrees
-		fei.current_roll2 = (ROLL_VERTICAL - fei.hall1) * 45 * FRACTION / 
+		fei.current_roll2 = -(ROLL_VERTICAL - fei.hall1) * 45 * FRACTION / 
 			(ROLL_VERTICAL - ROLL_MIN);
 
 
@@ -360,48 +417,6 @@ void do_feedback()
 			(cos_fixed(fei.handle_angle * 2) + 1 * FRACTION) / 2;
 
 
-//		fei.yaw_roll_fraction = fei.handle_angle * FRACTION / (90 * FRACTION);
-// copy for debugging
-//		int yaw_roll_fraction1 = fei.yaw_roll_fraction;
-
-// fudge the number
-// 		int division1 = FRACTION / 5;
-// 		int division2 = FRACTION / 3;
-// 		int halfway = FRACTION / 2;
-// 		int division4 = FRACTION * 2 / 3;
-// 		int division5 = FRACTION * 3 / 4;
-// 		if(fei.yaw_roll_fraction < division1)
-// 		{
-// 			fei.yaw_roll_fraction = 0;
-// 		}
-// 		else
-// 		if(fei.yaw_roll_fraction < division2)
-// 		{
-// 			// scale it to 0 ... halfway
-// 			fei.yaw_roll_fraction = (fei.yaw_roll_fraction - division1) * 
-// 				(halfway - 0) /
-// 				(division2 - division1) +
-// 				0;
-// 		}
-// 		else
-// 		if(fei.yaw_roll_fraction < division4)
-// 		{
-// 			// always halfway
-// 			fei.yaw_roll_fraction = halfway;
-// 		}
-// 		else
-// 		if(fei.yaw_roll_fraction < division5)
-// 		{
-// 			// scale it to halfway ... FRACTION
-// 			fei.yaw_roll_fraction = (fei.yaw_roll_fraction - division4) * 
-// 				(FRACTION - halfway) /
-// 				(division5 - division4) +
-// 				halfway;
-// 		}
-// 		else
-// 		{
-// 			fei.yaw_roll_fraction = FRACTION;
-// 		}
 
 // DEBUG
 //yaw_roll_fraction = FRACTION * 2 / 3;
@@ -421,23 +436,12 @@ void do_feedback()
 
 
 // X motor position
-// 19925 0
-// 22309 360
-			int test_x_phase = ((fei.hall1 - 19925) % 2384) * 
+// 31650 0
+// 29326 -360
+			int test_x_phase = ((fei.hall1 - 31650) % 2324) * 
 				360 * FRACTION / 
-				2384;
+				2324;
 
-
-// 			ipd_t roll_ipd;
-// 			ipd_t heading_ipd;
-// 			blend_ipd(&heading_ipd, 
-// 				&fei.hall_heading_ipd,
-// 				&fei.hall_heading_ipd90,
-// 				fei.yaw_roll_fraction);
-// 			blend_ipd(&roll_ipd, 
-// 				&fei.hall_roll_ipd,
-// 				&fei.hall_roll_ipd90,
-// 				fei.yaw_roll_fraction);
 
 			int heading_step = get_step(&fei.hall_heading_ipd, 
 				-z_error, 
@@ -468,38 +472,10 @@ void do_feedback()
 		else
 		{
 // use IMU feedback
-// schedule gains based on handle angle
-// 			ipd_t roll_ipd;
-// 			ipd_t heading_ipd;
-// 
-// 
-// 			if(fei.yaw_roll_fraction < FIXED(0.5))
-// 			{
-// 				blend_ipd(&heading_ipd, 
-// 					&fei.heading_ipd,
-// 					&fei.heading_ipd45,
-// 					fei.yaw_roll_fraction * 2);
-// 				blend_ipd(&roll_ipd, 
-// 					&fei.roll_ipd,
-// 					&fei.roll_ipd45,
-// 					fei.yaw_roll_fraction * 2);
-// 			}
-// 			else
-// 			{
-// 				blend_ipd(&heading_ipd, 
-// 					&fei.heading_ipd45,
-// 					&fei.heading_ipd90,
-// 					(fei.yaw_roll_fraction - FIXED(0.5)) * 2);
-// 				blend_ipd(&roll_ipd, 
-// 					&fei.roll_ipd45,
-// 					&fei.roll_ipd90,
-// 					(fei.yaw_roll_fraction - FIXED(0.5)) * 2);
-// 			}
-
 
 
 // get motor steps
-			int roll_step = get_step(&fei.roll_ipd, 
+			int roll_step = -get_step(&fei.roll_ipd, 
 				x_error, 
 				-gyro_x, 
 				-get_derivative(&fei.roll_accel));
@@ -533,27 +509,28 @@ fei.debug_time = mane_time;
 // blink the LED
 send_uart(&uart, ".", 1);
 
-TRACE
-print_text(&uart, "recover_count=");
-print_number(&uart, imu.recover_count);
-print_text(&uart, "HZ=");
-print_number(&uart, fei.imu_count);
+//TRACE
+//print_text(&uart, "recover_count=");
+//print_number(&uart, imu.recover_count);
+//print_text(&uart, "HZ=");
+//print_number(&uart, fei.imu_count);
 fei.imu_count = 0;
 
 //print_fixed(&uart, fei.current_roll);
 //print_fixed(&uart, fei.current_roll2);
+//print_fixed(&uart, fei.current_pitch);
 //print_fixed(&uart, fei.current_pitch2);
-//print_fixed(&uart, fei.yaw_roll_fraction1);
-//print_fixed(&uart, fei.yaw_roll_fraction);
+//print_fixed(&uart, fei.handle_angle);
 
+//print_fixed(&uart, fei.x_phase);
 //print_number(&uart, fei.hall1); // roll motor
+//print_fixed(&uart, fei.yaw_roll_fraction);
 //print_fixed(&uart, fei.current_heading);
-//print_number(&uart, fei.hall2);
-//print_fixed(&uart, test_phase);
 //print_fixed(&uart, fei.y_phase);
+//print_number(&uart, fei.hall2); // pitch motor
+//print_fixed(&uart, test_phase);
 //print_fixed(&uart, y_error);
 //print_number(&uart, fei.hall0);
-//print_number(&uart, fei.hall2); // pitch motor
 }
 
 		FIX_PHASE(fei.x_phase);

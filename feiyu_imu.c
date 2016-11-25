@@ -89,9 +89,9 @@ void do_ahrs(unsigned char *imu_buffer)
 	if(fei.gyro_count >= GYRO_RATIO)
 	{
 		fei.gyro_count = 0;
-		int accel_x = (int16_t)((imu_buffer[6] << 8) | imu_buffer[7]);
+		int accel_x = -(int16_t)((imu_buffer[6] << 8) | imu_buffer[7]);
 		int accel_y = -(int16_t)((imu_buffer[2] << 8) | imu_buffer[3]);
-		int accel_z = -(int16_t)((imu_buffer[4] << 8) | imu_buffer[5]);
+		int accel_z = (int16_t)((imu_buffer[4] << 8) | imu_buffer[5]);
 
 		fei.accel_x = (fei.accel_x * (FRACTION - ACCEL_BANDWIDTH) +
 			accel_x * FRACTION * ACCEL_BANDWIDTH) / FRACTION;
@@ -108,7 +108,7 @@ void do_ahrs(unsigned char *imu_buffer)
 		}
 		else
 		{
-			fei.abs_roll = atan2_fixed(fei.accel_x / FRACTION, fei.accel_z / FRACTION);
+			fei.abs_roll = -atan2_fixed(fei.accel_x / FRACTION, fei.accel_z / FRACTION);
 			fei.abs_pitch = -atan2_fixed(-fei.accel_y / FRACTION, fei.accel_z / FRACTION);
 			fei.abs_roll += ROLL_OFFSET;
 			fei.abs_pitch += PITCH_OFFSET;
@@ -120,9 +120,9 @@ void do_ahrs(unsigned char *imu_buffer)
 		
 	}
 
-	fei.gyro_x = (int16_t)((imu_buffer[10] << 8) | imu_buffer[11]);
-	fei.gyro_y = (int16_t)((imu_buffer[14] << 8) | imu_buffer[15]);
-	fei.gyro_z = (int16_t)((imu_buffer[12] << 8) | imu_buffer[13]);
+	fei.gyro_x = -(int16_t)((imu_buffer[10] << 8) | imu_buffer[11]);
+	fei.gyro_y = -(int16_t)((imu_buffer[14] << 8) | imu_buffer[15]);
+	fei.gyro_z = -(int16_t)((imu_buffer[12] << 8) | imu_buffer[13]);
 
 	if(fei.calibrate_imu)
 	{
@@ -324,6 +324,7 @@ void do_ahrs(unsigned char *imu_buffer)
 //		print_fixed(&uart, fei.current_roll);
 //	    print_fixed(&uart, fei.current_pitch);
 //		print_fixed(&uart, fei.current_heading);
+
 //		print_fixed(&uart, fei.current_roll - fei.abs_roll);
 //	    print_fixed(&uart, fei.current_pitch - fei.abs_pitch);
 

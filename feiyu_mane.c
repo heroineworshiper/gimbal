@@ -560,11 +560,11 @@ void main()
 #ifdef TEST_KINEMATICS
 				case 'w':
 					fei.x_phase += FRACTION;
-					print_phase = 1;
+//					print_phase = 1;
 					break;
 				case 'z':
 					fei.x_phase -= FRACTION;
-					print_phase = 1;
+//					print_phase = 1;
 					break;
 				case 'u':
 					fei.z_phase += FRACTION;
@@ -685,6 +685,8 @@ void main()
 				TRACE
 				print_text(&uart, "X=");
 				print_fixed(&uart, fei.x_phase);
+				print_text(&uart, "Y=");
+				print_fixed(&uart, fei.y_phase);
 				print_text(&uart, "Z=");
 				print_fixed(&uart, fei.z_phase);
 				print_text(&uart, "current_pitch2=");
