@@ -48,10 +48,15 @@
 // pin 46/PB9 -> LED
 
 
+// Short DISABLE PWM & GROUND pins to access the serial port.
+// then run feiyu_program
+
 // program with 
 // make clean;make;feiyu_program feiyu_mane.bin 
 // make clean;make;feiyu_program -p 1 feiyu_mane.bin 
 // make clean;make;feiyu_program -p 2 feiyu_mane.bin 
+
+
 
 
 // enable a board to build the bootloader or mane program
@@ -132,8 +137,22 @@ typedef struct
 	int d;
 	int error_limit;
 	int rate_limit;
+	
+	
+	
+	
 } ipd_t;
 
+
+
+#define ORDER 2
+typedef struct
+{
+	int bandwidth;
+	int prev_output[ORDER];
+	int prev_input[ORDER];
+	int result;
+} filter_t;
 
 
 
@@ -241,9 +260,13 @@ typedef struct
 	derivative_t heading_accel;
 	int heading_accel_data[HEADING_D_SIZE];
 
-	matrix_t rotation_matrix;
-	vector_t rotation_vector;
-	vector_t rotation_result;
+	filter_t roll_highpass;
+	filter_t pitch_highpass;
+	filter_t heading_highpass;
+
+//	matrix_t rotation_matrix;
+//	vector_t rotation_vector;
+//	vector_t rotation_result;
 
 #endif // BOARD0
 

@@ -1861,7 +1861,7 @@ void main()
 
 #endif // 0
 
-
+#if 0
 int probed1[] = 
 {
 	1614,
@@ -2644,10 +2644,97 @@ void main()
 
 
 
+#endif
+
+
+#define FRACTION 256
+
+typedef struct
+{
+	int bandwidth;
+	int prev_output[ORDER];
+	int prev_input[ORDER];
+	int result;
+		} filter_t;
+
+
+void init_filter(filter_t *ptr, int value, int bandwidth)
+{
+	int i;
+	ptr->bandwidth = bandwidth;
+	for(i = 0; i < ORDER; i++)
+	{
+		ptr->prev_output[i] = value;
+		ptr->prev_input[i] = value;
+	}
+}
+
+int do_highpass(filter_t *ptr, int value)
+{
+	int i;
+	int result = value;
+	for(i = 0; i < ORDER; i++)
+	{
+		result = ptr->bandwidth * 
+			(ptr->prev_output[i] + value - ptr->prev_input[i]);
+		ptr->prev_input[i] = value;
+		ptr->prev_output[i] = result;
+		value = result;
+	}
+	
+	return result;
+}
+
+
+void test_freq(int period, 
+	int bandwidth, 
+	int *result)
+{
+	int n = 1024;
+	int i;
+	int data[n];
+	*result = 0;
+	
+	for(i = 0; i < n; i++)
+	{
+		data[i] = FRACTION * sin((float)i * 2 * M_PI / period);
+	}
+	
+	filter_t filter;
+	init_filter(&filter, data[0], bandwidth);
+	
+	for(i = 1; i < n; i++)
+	{
+// highpass filter
+		int p = do_highpass(&filter, data[i]);
+
+		if(p > *result)
+		{
+			*result = p;
+		}
+	}
+}
+
+
+void main()
+{
+	filter_t filter;
+	int bandwidth = FRACTION;
 
 
 
+	for(i = 200; i >= 2; i--)
+	{
+		int result;
+		test_freq(i, 
+			bandwidth, 
+			&result);
+		
+		printf("%d,%f\n", i, (float)result / FRACTION);
+	}
+printf("\n\n\n");
 
+}
 
 
 

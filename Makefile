@@ -4,7 +4,8 @@ OBJCOPY := /opt/arm/bin/arm-elf-objcopy
 ARM_CFLAGS := -O2 -c -I. -Irtlwifi -Iarm -Istm32f4 -fno-builtin -mthumb -mcpu=cortex-m4 -mlittle-endian -ffreestanding 
 ARM_LFLAGS := -fno-builtin -mthumb -mcpu=cortex-m4 -mlittle-endian -ffreestanding -nostdlib -nostdinc -L/opt/arm/lib/gcc/arm-elf/4.1.1/
 
-AVR_DIR := /root/arduino-1.6.0/hardware/tools/avr/bin/
+#AVR_DIR := /root/arduino-1.6.0/hardware/tools/avr/bin/
+AVR_DIR := /amazon2/root/arduino-1.8.5/hardware/tools/avr/bin/
 AVR_GCC := $(AVR_DIR)avr-gcc
 AVR_OBJCOPY := $(AVR_DIR)avr-objcopy -j .text -j .data -O ihex
 AVR_DUDE := avrdude -v -patmega328p -cstk500v1 -P/dev/ttyACM0 -b19200
@@ -321,6 +322,20 @@ feiyu_archive:
 	cp -a $(FEIYU_SRCS) /tmp/feiyu
 	cd /tmp && tar Jcf feiyu.tar.xz feiyu
 
+
+# compile suntracker
+suntracker:
+	$(AVR_GCC) $(AVR_CFLAGS) -DSUNTRACKER -o suntracker.o suntracker.c avr_debug.c
+	$(AVR_GCC) $(AVR_LFLAGS) -o suntracker.elf suntracker.o
+	$(AVR_OBJCOPY) suntracker.elf suntracker.hex
+
+suntracker_isp:
+	$(AVR_DUDE) -Uflash:w:suntracker.hex:i -Ulock:w:0x0F:m
+
+suntracker_fuse:
+	$(AVR_DUDE) -Ulock:w:0x3F:m -Ulfuse:w:0xE7:m
+	$(AVR_DUDE) -Ulock:w:0x3F:m -Uhfuse:w:0xDA:m
+	$(AVR_DUDE) -Ulock:w:0x3F:m -Uefuse:w:0x05:m
 
 imu.hex: imu.s hardi2c.s hardi2c.inc
 	gpasm -o imu.hex imu.s

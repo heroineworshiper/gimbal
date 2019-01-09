@@ -23,8 +23,11 @@
 // debugging for AVR
 
 
-
-#include "feiyu.h"
+#ifdef SUNTRACKER
+	#include "suntracker.h"
+#else
+	#include "feiyu.h"
+#endif
 
 
 
@@ -45,6 +48,17 @@ void print_text(char *text)
 	for(i = 0; uart_used < UART_SIZE && text[i] != 0; i++)
 	{
 		uart_buffer[uart_write_ptr++] = text[i];
+		uart_used++;
+		if(uart_write_ptr >= UART_SIZE) uart_write_ptr = 0;
+	}
+}
+
+void print_byte(char c)
+{
+	int i;
+	if(uart_used < UART_SIZE)
+	{
+		uart_buffer[uart_write_ptr++] = c;
 		uart_used++;
 		if(uart_write_ptr >= UART_SIZE) uart_write_ptr = 0;
 	}

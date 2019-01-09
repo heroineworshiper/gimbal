@@ -24,6 +24,8 @@
 #define AVR_DEBUG_H
 
 extern int uart_used;
+extern int have_uart_in;
+extern char uart_in;
 
 void print_text(char *text);
 void print_number(int number);
@@ -31,6 +33,7 @@ void print_number_unsigned(uint16_t number);
 void flush_serial();
 void handle_serial();
 void init_serial();
+void print_byte(char c);
 
 
 

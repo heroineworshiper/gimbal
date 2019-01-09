@@ -2,7 +2,7 @@
 /*
  * Feiyu gimbal hack
  *
- * Copyright (C) 2016 Adam Williams <broadcast at earthling dot net>
+ * Copyright (C) 2016-2018 Adam Williams <broadcast at earthling dot net>
  * 
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -49,7 +49,7 @@ static const unsigned char handle_table[] = {
 
 };
 
-int16_t rotation_table[4 * 19];
+//int16_t rotation_table[4 * 19];
 
 
 int get_handle_angle()
@@ -114,6 +114,14 @@ static void init_ipd(ipd_t *ptr,
 	ptr->rate_limit = rate_limit;
 }
 
+static void zero_ipd(ipd_t *ptr)
+{
+	ptr->i = 0;
+	ptr->p = 0;
+	ptr->d = 0;
+}
+
+
 static void blend_ipd(ipd_t *out, 
 	ipd_t *arg1,
 	ipd_t *arg2,
@@ -156,6 +164,34 @@ static int get_step(ipd_t *table, int error, int rate, int derivative)
 }
 
 
+void init_filter(filter_t *ptr, int value, int bandwidth)
+{
+	int i;
+	ptr->bandwidth = bandwidth;
+	for(i = 0; i < ORDER; i++)
+	{
+		ptr->prev_output[i] = value;
+		ptr->prev_input[i] = value;
+	}
+}
+
+int do_highpass(filter_t *ptr, int value)
+{
+	int i;
+	int result = value;
+	for(i = 0; i < ORDER; i++)
+	{
+		result = ptr->bandwidth * 
+			(ptr->prev_output[i] + value - ptr->prev_input[i]) / 
+			FRACTION;
+		ptr->prev_input[i] = value;
+		ptr->prev_output[i] = result;
+		value = result;
+	}
+	
+	return result;
+}
+
 
 
 // motor feedback is on board 0 only
@@ -165,64 +201,64 @@ void init_feedback()
 	init_derivative(&fei.pitch_accel, PITCH_D_SIZE);
 	init_derivative(&fei.heading_accel, HEADING_D_SIZE);
 	
+	
+	init_filter(&fei.roll_highpass, 0, FIXED(0.90));
+	init_filter(&fei.pitch_highpass, 0, FIXED(0.90));
+	init_filter(&fei.heading_highpass, 0, FIXED(0.90));
+	
+	
 // init rotation table
 	int i;
-	for(i = 0; i <= 90; i += 5)
-	{
-		int index = i / 5;
-		index *= 4;
-		int cos_angle = cos_fixed(i * FRACTION);
-		int sin_angle = sin_fixed(i * FRACTION);
-		
-		rotation_table[index + 0] = cos_angle;
-		rotation_table[index + 1] = sin_angle;
-		rotation_table[index + 2] = -sin_angle;
-		rotation_table[index + 3] = cos_angle;
-/*
- * 		TRACE
- * 		print_fixed(&uart, rotation_table[index * 4 + 0]);
- * 		print_fixed(&uart, rotation_table[index * 4 + 1]);
- * 		print_fixed(&uart, rotation_table[index * 4 + 2]);
- * 		print_fixed(&uart, rotation_table[index * 4 + 3]);
- */
-	}
+// 	for(i = 0; i <= 90; i += 5)
+// 	{
+// 		int index = i / 5;
+// 		index *= 4;
+// 		int cos_angle = cos_fixed(i * FRACTION);
+// 		int sin_angle = sin_fixed(i * FRACTION);
+// 		
+// 		rotation_table[index + 0] = cos_angle;
+// 		rotation_table[index + 1] = sin_angle;
+// 		rotation_table[index + 2] = -sin_angle;
+// 		rotation_table[index + 3] = cos_angle;
+// /*
+//  * 		TRACE
+//  * 		print_fixed(&uart, rotation_table[index * 4 + 0]);
+//  * 		print_fixed(&uart, rotation_table[index * 4 + 1]);
+//  * 		print_fixed(&uart, rotation_table[index * 4 + 2]);
+//  * 		print_fixed(&uart, rotation_table[index * 4 + 3]);
+//  */
+// 	}
 	
-	INIT_MATRIX(fei.rotation_matrix, 3, 3);
-	MATRIX_ENTRY(fei.rotation_matrix, 0, 0) = FIXED(1);
-	MATRIX_ENTRY(fei.rotation_matrix, 0, 1) = 0;
-	MATRIX_ENTRY(fei.rotation_matrix, 0, 2) = 0;
-	MATRIX_ENTRY(fei.rotation_matrix, 1, 0) = 0;
-	MATRIX_ENTRY(fei.rotation_matrix, 2, 0) = 0;
+// 	INIT_MATRIX(fei.rotation_matrix, 3, 3);
+// 	MATRIX_ENTRY(fei.rotation_matrix, 0, 0) = FIXED(1);
+// 	MATRIX_ENTRY(fei.rotation_matrix, 0, 1) = 0;
+// 	MATRIX_ENTRY(fei.rotation_matrix, 0, 2) = 0;
+// 	MATRIX_ENTRY(fei.rotation_matrix, 1, 0) = 0;
+// 	MATRIX_ENTRY(fei.rotation_matrix, 2, 0) = 0;
 	
-	INIT_VECTOR(fei.rotation_vector, 3);
-	INIT_VECTOR(fei.rotation_result, 3);
+//	INIT_VECTOR(fei.rotation_vector, 3);
+//	INIT_VECTOR(fei.rotation_result, 3);
 	
+// feedback using IMU
 	init_ipd(&fei.pitch_ipd,  
 		FIXED(1),   // I as high as possible
-//		FIXED(0.0625),   // P as high as possible
-//		FIXED(0.125),   // D as high as possible
 		FIXED(0.082),   // P as high as possible
-		FIXED(0.250),   // D as high as possible
+		FIXED(0.250),   // D/highpass as high as possible
 		FIXED(255),   // error limit
 		FIXED(255));  // rate limit
 	
 
 
-// feedback using IMU
 	init_ipd(&fei.roll_ipd,  
 		FIXED(1),   // I
 		FIXED(0.25),   // P
-		FIXED(1.0),   // D
-//		FIXED(0.4),   // P
-//		FIXED(1.5),   // D
+		FIXED(1.0),   // D/highpass
 		FIXED(255), 
 		FIXED(255));
 	init_ipd(&fei.heading_ipd, 
 		FIXED(1),  // I
-//		FIXED(0.25),  // P
-//		FIXED(0.5),  // D
 		FIXED(0.5),  // P
-		FIXED(1.0),  // D
+		FIXED(1.0),  // D/highpass
 		FIXED(255),  // error limit
 		FIXED(255)); // rate limit
 
@@ -249,6 +285,14 @@ void init_feedback()
 		0,  // D
 		FIXED(60),  // error limit
 		FIXED(60)); // rate limit
+	
+
+// DEBUG
+// lock all motors except the one under test
+//zero_ipd(&fei.hall_heading_ipd);
+//zero_ipd(&fei.hall_roll_ipd);
+//zero_ipd(&fei.heading_ipd);
+//zero_ipd(&fei.roll_ipd);
 }
 
 
@@ -351,6 +395,13 @@ void do_feedback()
 		update_derivative(&fei.pitch_accel, gyro_y);
 		update_derivative(&fei.heading_accel, gyro_z);
 
+
+// update FIRs
+// this didn't work as well as derivatives
+//		int gyro_x_highpass = do_highpass(&fei.roll_highpass, gyro_x);
+//		int gyro_y_highpass = do_highpass(&fei.pitch_highpass, gyro_y);
+//		int gyro_z_highpass = do_highpass(&fei.heading_highpass, gyro_z);
+
 #define IMU_LIMIT (10 * FRACTION)
 
 // effect of pitch motor on pitch
@@ -381,6 +432,7 @@ void do_feedback()
 			int pitch_step = get_step(&fei.pitch_ipd, 
 				-y_error, 
 				gyro_y, 
+//				gyro_y_highpass);
 				get_derivative(&fei.pitch_accel));
 #ifndef TEST_KINEMATICS
 			fei.y_phase += pitch_step;
@@ -478,10 +530,12 @@ void do_feedback()
 			int roll_step = -get_step(&fei.roll_ipd, 
 				x_error, 
 				-gyro_x, 
+//                -gyro_x_highpass);
 				-get_derivative(&fei.roll_accel));
 			int heading_step = get_step(&fei.heading_ipd, 
 				-z_error, 
 				gyro_z, 
+//                gyro_z_highpass);
 				get_derivative(&fei.heading_accel));
 
 			int x_step, z_step;
