@@ -21,8 +21,6 @@
  */
 
 
-// bootloader for the feiyu stm32f103c8 
-// STM32Cube_FW_F1_V1.3.0 only defines the stm32f103xb
 
 // build with
 // make

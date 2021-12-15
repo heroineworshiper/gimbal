@@ -1,0 +1,136 @@
+Firmware for a Feiyu Mini 3D
+
+
+
+Copyright (C) 2012-2021 Adam Williams <broadcast at earthling dot net>
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+
+---------------------------------------------------------------------------
+
+
+The factory Feiyu had pitch, yaw, & mode control.  They were controlled
+by 3 PWM signals.
+
+The 3 factory modes were:
+    Rate of yaw change based on PWM + absolute pitch based on absolute PWM.
+    Yaw follows handle.  Fixed pitch.
+    Yaw follows handle.  Absolute pitch based on absolute PWM.
+
+The custom firmware supports yaw control only.  It takes a 1 byte UART
+code which specifies the yaw change & whether yaw should follow the
+handle.
+
+
+The Feiyu has 3 STM32F1's daisychained next to the motors.  Outside the
+gimbal, an ATMega328 is attached to provide a user interface.  
+
+The makefile makes an ARM bootloader, ARM firmware, ATMega firmware, &
+ARM programmer for the Feiyu.
+
+The journey begins by soldering the GND, SWDIO & SWCLK pins of the 3
+STM32F1s to a temporary header.  Then, erase the factory firmware on the
+3 STM32F1's & write feiyu_bootloader.bin, the custom bootloader.  You
+must compile a different feiyu_bootloader for each board.  More notes
+about writing the bootloader are in feiyu_bootloader.c.
+
+Remove the SWD header after testing the bootloader.  
+
+Flash the ATMega328 with feiyu2.hex the usual way for programming
+atmegas.  More notes about writing feiyu2.hex are in feiyu2.c
+
+To write the ARM firmware, short out GND & DISABLE PWM on the ATMega to
+pass through the UART.  Then uncomment 1 of the BOARD lines in
+feiyu_mane.h to select which ARM the firmware is for.  0 is the 1st ARM
+in the daisychain.  2 is the ARM next to the camera.
+
+Rebuild with the right BOARD option.
+
+make clean;make
+
+Then program with feiyu_program & notes in feiyu_mane.h
+
+
+enclosure2.FCStd: Handle for the feiyu + ATMega control board
+
+feiyu3.pcb: ATmega control board for the Feiyu
+    Powered by 7.2-8.4V Lipo
+    MODE, YAW, PITCH, V+, GND pins connect to corresponding pins in the
+        Feiyu header.
+    PITCH & YAW double as UART pins in the Feiyu.
+    User input goes into STICK YAW, MODE POT
+
+feiyu_bootloader.c: custom bootloader for the STM32F1
+
+feiyu.c: Obsolete ATMega328 firmware for controlling the factory ARM's
+with PWM signals.
+
+feiyu2.c: ATMega328 firmware for controlling the custom ARM's with a
+UART protocol.  Remnants of the factory control scheme remane.
+
+feiyu_mane.c: The custom ARM firmware.
+
+
+
+
+---------------------------------------------------------------------------
+The 1st brushless gimbal, a single STM32F4 with
+3 L6234's driving 3 home wound motors on a giant angle rod assembly
+
+arm_math.c
+gimbal.c
+hardi2c.c
+idg3200.c
+imu.c
+linux.c
+mpu9150.c
+stm32f4/
+uart.c
+
+bootloader.c
+stm32f4/
+uart.c
+    Bootloader for the 1st gimbal
+
+---------------------------------------------------------------------------
+Tracking camera experiments
+
+cam.c
+motion.c
+    Tracking cam using differences between frames
+
+cam_lidar.c: Tracking cam using lidar
+
+----------------------------------------------------------------------------
+
+suntracker.c
+suntracker.h
+suntracker.pcb
+
+Might have been the start of an automated way to track the sun during an
+eclipse that was deemed unnecessary.
+
+----------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+

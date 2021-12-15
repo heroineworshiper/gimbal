@@ -23,8 +23,11 @@
 // bootloader for the feiyu stm32f103c8 
 // STM32Cube_FW_F1_V1.3.0 only defines the stm32f103xb
 
+// Uncomment the right BOARD line in feiyu_mane.h this bootloader is
+// intended for.
+
 // build with
-// make feiyu_bootloader.bin
+// make clean;make feiyu_bootloader.bin
 
 
 // program with 
