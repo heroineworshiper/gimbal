@@ -34,6 +34,10 @@ The custom firmware supports yaw control only.  It takes a 1 byte UART
 code which specifies the yaw change & whether yaw should follow the
 handle.
 
+Manually flip the camera & hold it for 1 second to switch to flipped
+mode.  Flipping the camera allows the handle to go above or below the
+camera.  The handle can't go in front & below the camera in flipped mode.
+
 
 The Feiyu has 3 STM32F1's daisychained next to the motors.  Outside the
 gimbal, an ATMega328 is attached to provide a user interface.  
