@@ -52,9 +52,9 @@
 // then run feiyu_program
 
 // program with 
-// make clean;make;feiyu_program feiyu_mane.bin 
-// make clean;make;feiyu_program -p 1 feiyu_mane.bin 
-// make clean;make;feiyu_program -p 2 feiyu_mane.bin 
+// make clean;make;./feiyu_program feiyu_mane.bin 
+// make clean;make;./feiyu_program -p 1 feiyu_mane.bin 
+// make clean;make;./feiyu_program -p 2 feiyu_mane.bin 
 
 
 
@@ -73,7 +73,13 @@
 //#define CALIBRATE_MOTOR
 //#define ANTICOGGING
 //#define TEST_MOTOR
+// don't provide any feedback
 //#define TEST_KINEMATICS
+//#define TEST_PID
+// disable motors for testing.
+//#define DISABLE_MOTORS
+// read keyboard input instead of atmega codes
+//#define USE_KEYBOARD
 
 // derivative length
 #define ROLL_D_SIZE 4
@@ -112,12 +118,22 @@
 #define TIMx_IRQn                      TIM3_IRQn
 #define TIMx_IRQHandler                TIM3_IRQHandler
 
+// software I2C
+#define SOFT_I2C
+
 // frequency of the mane timer
 #define HZ 1000
 // frequency of the IMU, determined by sample rate divider & CPU load
-#define IMU_HZ 1955
+#ifdef SOFT_I2C
+    #define IMU_HZ 966
+#else
+    #define IMU_HZ 1955
+#endif
+// UART packet rate
+#define UART_HZ 15
 
-
+// degrees per second for manual slewing
+#define MANUAL_SPEED FIXED(16)
 
 #define SYNC_CODE 0xe5
 #define MOTOR_PACKET_SIZE 12
@@ -178,6 +194,20 @@ typedef struct
 // total IMU packets for testing
 	int imu_count;
 
+// bits from the UART
+// 1 if following handle
+    int follow_mode;
+// code from the stick
+    int stick_code;
+// amount of yaw change if following handle
+    int yaw_command;
+// if we're upside down
+    int flip;
+// timer for flipping
+    int flip_counter;
+#define FLIP_THRESHOLD 10000
+#define FLIP_COUNT (IMU_HZ / 2)
+
 // accel readings * FRACTION after lowpass filtering
 	int accel_x;
 	int accel_y;
@@ -186,6 +216,10 @@ typedef struct
 	int gyro_x;
 	int gyro_y;
 	int gyro_z;
+// centered, flipped raw gyro readings
+	int gyro_x2;
+	int gyro_y2;
+	int gyro_z2;
 
 	int gyro_x_accum;
 	int gyro_y_accum;
@@ -212,6 +246,7 @@ typedef struct
 	int gyro_roll;
 	int gyro_pitch;
 	int gyro_heading;
+// IMU angles
 	int current_roll;
 	int current_pitch;
 	int current_heading;
@@ -219,8 +254,10 @@ typedef struct
 // absolute angles of the motors detected by hall effect sensor
 	int current_roll2;
 	int current_pitch2;
+    int current_yaw2;
 	int handle_angle;
 	int yaw_roll_fraction;
+    int pitch_heading_fraction;
 
 	int target_roll;
 	int target_pitch;

@@ -2,7 +2,7 @@
 /*
  * Feiyu gimbal hack
  *
- * Copyright (C) 2016-2018 Adam Williams <broadcast at earthling dot net>
+ * Copyright (C) 2016-2021 Adam Williams <broadcast at earthling dot net>
  * 
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,12 @@
 
 // build with
 // make
+
+// Remnants of the factory control scheme remane.
+// Analog MODE, PITCH, YAW was originally converted to PWM MODE, PITCH, YAW.
+// The new control scheme converts analog YAW to a yaw code & a binary mode.
+
+
 
 
 #include "feiyu_feedback.h"
@@ -413,6 +419,15 @@ void main()
 #else // BOARD2
 
 
+// test delay
+//     int total = 0;
+//     while(1)
+//     {
+//         udelay(1000000);
+//         TRACE
+//         print_number(&uart, total++);
+//         flush_uart(&uart);
+//     }
 
 
 
@@ -481,52 +496,56 @@ void main()
 
 
 #ifdef BOARD0
-// user command
+// user command.  UART fires at UART_HZ
 		int print_pid = 0;
 		int print_phase = 0;
 		int print_scale = 0;
 		if(uart_got_input(&uart))
 		{
 			unsigned char c = uart_get_input(&uart);
-			switch(c)
-			{
-				case '2':
-				{
-//					if(fei.yaw_roll_fraction < FRACTION / 4)
-					{
-						fei.target_heading -= FRACTION;
-					}
-// 					else
-// 					{
-// 						fei.target_heading -= FRACTION / 4;
-// 					}
-					
-					if(fei.target_heading < -180 * FRACTION)
-					{
-						fei.target_heading += 360 * FRACTION;
-					}
-				}
-				break;
-			
-				case '1':
-				{
-//					if(fei.yaw_roll_fraction < FRACTION / 4)
-					{
-						fei.target_heading += FRACTION;
-					}
-// 					else
-// 					{
-// 						fei.target_heading += FRACTION / 4;
-// 					}
-					
-					if(fei.target_heading > 180 * FRACTION)
-					{
-						fei.target_heading -= 360 * FRACTION;
-					}
-				}
-				break;
+//TRACE
+//print_hex2(&uart, c);
+
+#ifndef TEST_KINEMATICS
+#ifndef USE_KEYBOARD
+            fei.follow_mode = (c & 0x80) ? 0 : 1;
+            fei.stick_code = (c & 0x03);
+#endif // !USE_KEYBOARD
+#endif // !TEST_KINEMATICS
+
+
+#ifdef USE_KEYBOARD
+            switch(c)
+            {
+                case 'f':
+                    fei.follow_mode = !fei.follow_mode;
+                    TRACE
+                    print_text(&uart, "follow_mode=");
+					print_number(&uart, fei.follow_mode);
+                    break;
+
+                case 'a':
+                    fei.target_heading -= MANUAL_SPEED / UART_HZ;
+	                if(fei.target_heading < -180 * FRACTION)
+	                {
+		                fei.target_heading += 360 * FRACTION;
+	                }
+                    break;
+
+                case 'd':
+                    fei.target_heading += MANUAL_SPEED / UART_HZ;
+		            if(fei.target_heading > 180 * FRACTION)
+		            {
+			            fei.target_heading -= 360 * FRACTION;
+		            }
+                    break;
+            }
+
+#endif
 
 #ifdef TEST_MOTOR
+            switch(c)
+            {
 				case '3':
 				{
 					fei.x_phase -= FRACTION;
@@ -538,7 +557,7 @@ void main()
 					print_fixed(&uart, fei.x_phase);
 				}
 				break;
-			
+
 				case '4':
 				{
 					fei.x_phase += FRACTION;
@@ -550,12 +569,14 @@ void main()
 					print_fixed(&uart, fei.x_phase);
 				}
 				break;
-				
-				
+			}
+
 #endif // TEST_MOTOR
 
 
 #ifdef TEST_KINEMATICS
+            switch(c)
+            {
 				case 'w':
 					fei.x_phase += FRACTION;
 //					print_phase = 1;
@@ -582,9 +603,12 @@ void main()
 					fei.z_phase += FRACTION;
 					print_phase = 1;
 					break;
-#else
+            }
+#endif // TEST_KINEMATICS
 
-
+#ifdef TEST_PID
+            switch(c)
+            {
 				case 'w':
 				{
 					fei.roll_ipd.p += 1;
@@ -603,8 +627,8 @@ void main()
 	//				write_motor2();
 				}
 				break;
-				
-			
+
+
 				case 'z':
 				{
 					fei.roll_ipd.p -= 1;
@@ -623,7 +647,7 @@ void main()
 	//				write_motor2();
 				}
 				break;
-			
+
 				case 'u':
 				{
 					fei.roll_ipd.d += 1;
@@ -644,7 +668,7 @@ void main()
 	//				write_motor();
 				}
 				break;
-			
+
 				case 'n':
 				{
 					fei.roll_ipd.d -= 1;
@@ -666,18 +690,18 @@ void main()
 				}
 				break;
 
-
-#endif // !TEST_KINEMATICS
-
 			}
-			
+
+#endif // TEST_PID
+
+
 			if(print_pid)
 			{
 				TRACE
 				print_fixed(&uart, fei.roll_ipd.p);
 				print_fixed(&uart, fei.roll_ipd.d);
 			}
-			
+
 			if(print_phase)
 			{
 				TRACE
@@ -690,17 +714,17 @@ void main()
 				print_text(&uart, "current_pitch2=");
 				print_fixed(&uart, fei.current_pitch2);
 			}
-			
+
 			if(print_scale)
 			{
 				TRACE
 				print_fixed(&uart, fei.test_scale);
 			}
-			
-			
+
+
 //			TRACE
 //			print_fixed(&uart, fei.target_heading);
-			
+
 		}
 #endif // BOARD0
 	}

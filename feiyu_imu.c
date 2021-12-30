@@ -40,7 +40,8 @@ imu_t imu;
 
 // must be level so it doesn't tilt when panning
 // really need variable roll/pitch 
-#define ROLL_OFFSET FIXED(5)
+//#define ROLL_OFFSET FIXED(5)
+#define ROLL_OFFSET FIXED(0)
 #define PITCH_OFFSET FIXED(2.5)
 
 
@@ -50,7 +51,8 @@ imu_t imu;
 #define GYRO_CENTER_TOTAL IMU_HZ
 #define MAX_GYRO_DRIFT 256
 
-#define BLEND_DOWNSAMPLE (IMU_HZ / 32)
+//#define BLEND_DOWNSAMPLE (IMU_HZ / 32)
+#define BLEND_DOWNSAMPLE (IMU_HZ / 256)
 // make it infinity to test the gyros
 //#define BLEND_DOWNSAMPLE 0x7fffffff
 
@@ -100,6 +102,41 @@ void do_ahrs(unsigned char *imu_buffer)
 		fei.accel_z = (fei.accel_z * (FRACTION - ACCEL_BANDWIDTH) +
 			accel_z * FRACTION * ACCEL_BANDWIDTH) / FRACTION;
 
+
+// handle flip
+        if(!fei.flip)
+        {
+            if(fei.accel_z < -FLIP_THRESHOLD)
+            {
+                fei.flip_counter++;
+                if(fei.flip_counter >= FLIP_COUNT / GYRO_RATIO)
+                {
+                    fei.flip = 1;
+                    fei.flip_counter = 0;
+                }
+            }
+            else
+            {
+                fei.flip_counter = 0;
+            }
+        }
+        else
+        {
+            if(fei.accel_z > FLIP_THRESHOLD)
+            {
+                fei.flip_counter++;
+                if(fei.flip_counter >= FLIP_COUNT / GYRO_RATIO)
+                {
+                    fei.flip = 0;
+                    fei.flip_counter = 0;
+                }
+            }
+            else
+            {
+                fei.flip_counter = 0;
+            }
+        }
+
 // absolute angles
 		if(abs_fixed(fei.accel_z) < 256)
 		{
@@ -110,6 +147,13 @@ void do_ahrs(unsigned char *imu_buffer)
 		{
 			fei.abs_roll = -atan2_fixed(fei.accel_x / FRACTION, fei.accel_z / FRACTION);
 			fei.abs_pitch = -atan2_fixed(-fei.accel_y / FRACTION, fei.accel_z / FRACTION);
+
+            if(fei.flip)
+            {
+                fei.abs_roll += FIXED(180);
+                fei.abs_pitch = FIXED(180) - fei.abs_pitch;
+            }
+
 			fei.abs_roll += ROLL_OFFSET;
 			fei.abs_pitch += PITCH_OFFSET;
 			fei.abs_roll = fix_angle(fei.abs_roll);
@@ -257,10 +301,20 @@ void do_ahrs(unsigned char *imu_buffer)
 	else
 // not calibrating
 	{
+        fei.gyro_x2 = (fei.gyro_x * FRACTION - fei.gyro_x_center) / FRACTION;
+        fei.gyro_y2 = (fei.gyro_y * FRACTION - fei.gyro_y_center) / FRACTION;
+        fei.gyro_z2 = (fei.gyro_z * FRACTION - fei.gyro_z_center) / FRACTION;
+
+        if(fei.flip)
+        {
+            fei.gyro_y2 = -fei.gyro_y2;
+            fei.gyro_z2 = -fei.gyro_z2;
+        }
+
 // only use integer part to avoid saturation
-		fei.gyro_roll += (fei.gyro_x * FRACTION - fei.gyro_x_center) / FRACTION;
-		fei.gyro_pitch += (fei.gyro_y * FRACTION - fei.gyro_y_center) / FRACTION;
-		fei.gyro_heading += (fei.gyro_z * FRACTION - fei.gyro_z_center) / FRACTION;
+		fei.gyro_roll += fei.gyro_x2;
+		fei.gyro_pitch += fei.gyro_y2;
+		fei.gyro_heading += fei.gyro_z2;
 
 		fei.gyro_roll = fix_gyro_angle(fei.gyro_roll);
 		fei.gyro_pitch = fix_gyro_angle(fei.gyro_pitch);
@@ -304,7 +358,7 @@ void do_ahrs(unsigned char *imu_buffer)
 		fei.current_heading = fix_angle(fei.current_heading);
 
 // debug
-	fei.imu_count++;
+	    fei.imu_count++;
 
 //	if(mane_time - fei.debug_time > HZ / 10)
 //	if(mane_time - fei.debug_time >= HZ)
@@ -352,6 +406,12 @@ void do_ahrs(unsigned char *imu_buffer)
 
 
 #define I2C_ADDRESS (0x68 << 1)
+#define CLOCK_GPIO GPIOB
+#define DATA_GPIO GPIOB
+#define CLOCK_PIN GPIO_PIN_10
+#define DATA_PIN GPIO_PIN_11
+
+#define I2C_DELAY udelay(1);
 
 I2C_HandleTypeDef I2cHandle;
 
@@ -398,7 +458,110 @@ print_text(&uart, "ACK failure");
 
 
 
+#ifdef SOFT_I2C
 
+
+
+void i2c_write(uint8_t value)
+{
+    int i = 0;
+    for(i = 0; i < 8; i++)
+    {
+        if((value & 0x80))
+        {
+            SET_PIN(DATA_GPIO, DATA_PIN);
+        }
+        else
+        {
+            CLEAR_PIN(DATA_GPIO, DATA_PIN);
+        }
+        I2C_DELAY
+        SET_PIN(CLOCK_GPIO, CLOCK_PIN);
+        I2C_DELAY
+        CLEAR_PIN(CLOCK_GPIO, CLOCK_PIN);
+        I2C_DELAY
+        value <<= 1;
+    }
+
+// read ACK
+    SET_PIN(CLOCK_GPIO, CLOCK_PIN);
+    I2C_DELAY
+// wait for clock to rise
+    while(!PIN_IS_SET(CLOCK_GPIO, CLOCK_PIN))
+    {
+        ;
+    }
+    int ack = PIN_IS_SET(DATA_GPIO, DATA_PIN);
+    CLEAR_PIN(CLOCK_GPIO, CLOCK_PIN);
+    I2C_DELAY
+}
+
+void i2c_read(int bytes)
+{
+    int i, j;
+    for(i = 0; i < bytes; i++)
+    {
+        uint8_t value = 0;
+
+/* data must rise before clock to read the byte */
+        SET_PIN(DATA_GPIO, DATA_PIN);
+        I2C_DELAY;
+        
+        for(j = 0; j < 8; j++)
+        {
+            value <<= 1;
+            SET_PIN(CLOCK_GPIO, CLOCK_PIN);
+            I2C_DELAY;
+            while(!PIN_IS_SET(CLOCK_GPIO, CLOCK_PIN))
+            {
+            }
+            
+            value |= PIN_IS_SET(DATA_GPIO, DATA_PIN);
+            CLEAR_PIN(CLOCK_GPIO, CLOCK_PIN);
+            I2C_DELAY
+        }
+        
+        imu.i2c_buffer[i] = value;
+        
+// write ACK
+        if(i >= bytes - 1)
+        {
+            SET_PIN(DATA_GPIO, DATA_PIN);
+        }
+        else
+        {
+            CLEAR_PIN(DATA_GPIO, DATA_PIN);
+        }
+        I2C_DELAY
+        SET_PIN(CLOCK_GPIO, CLOCK_PIN);
+        I2C_DELAY
+        CLEAR_PIN(CLOCK_GPIO, CLOCK_PIN);
+        I2C_DELAY
+    }
+}
+
+void i2c_start()
+{
+	SET_PIN(CLOCK_GPIO, CLOCK_PIN);
+	SET_PIN(DATA_GPIO, DATA_PIN);
+    I2C_DELAY
+    CLEAR_PIN(DATA_GPIO, DATA_PIN); 
+    I2C_DELAY
+	CLEAR_PIN(CLOCK_GPIO, CLOCK_PIN);
+    I2C_DELAY
+}
+
+void i2c_stop()
+{
+    CLEAR_PIN(DATA_GPIO, DATA_PIN);
+    I2C_DELAY
+    SET_PIN(CLOCK_GPIO, CLOCK_PIN);
+    I2C_DELAY
+    SET_PIN(DATA_GPIO, DATA_PIN);
+    I2C_DELAY
+}
+
+#endif // SOFT_I2C
 
 
 void i2c_read_device(unsigned char reg, int bytes)
@@ -408,6 +571,20 @@ void i2c_read_device(unsigned char reg, int bytes)
 	{
 		imu.i2c_buffer[i] = 0xff;
 	}
+
+#ifdef SOFT_I2C
+
+    i2c_start();
+// write device address & reg
+    i2c_write(I2C_7BIT_ADD_WRITE(I2C_ADDRESS));
+    i2c_write(reg);
+
+    i2c_start();
+    i2c_write(I2C_7BIT_ADD_READ(I2C_ADDRESS));
+    i2c_read(bytes);
+    i2c_stop();
+
+#else // SOFT_I2C
 
 	imu.error = 0;
 	imu.reg = reg;
@@ -510,17 +687,26 @@ void i2c_read_device(unsigned char reg, int bytes)
     		SET_BIT(I2cHandle.Instance->CR1, I2C_CR1_STOP);
 		}
 	}
-
+#endif // !SOFT_I2C
 }
-
-
-
 
 
 
 
 void i2c_write_device(unsigned char reg, unsigned char value)
 {
+#ifdef SOFT_I2C
+// start
+    i2c_start();
+
+// write device address
+    i2c_write(I2C_7BIT_ADD_WRITE(I2C_ADDRESS));
+    i2c_write(reg);
+    i2c_write(value);
+    
+    i2c_stop();
+
+#else // SOFT_I2C
 	imu.error = 0;
 	imu.reg = reg;
 	imu.bytes = 1;
@@ -571,6 +757,7 @@ void i2c_write_device(unsigned char reg, unsigned char value)
 	
 	/* Generate Stop */
     SET_BIT(I2cHandle.Instance->CR1, I2C_CR1_STOP);
+#endif // !SOFT_I2C
 }
 
 
@@ -737,7 +924,14 @@ void imu_init0()
 }
 
 
+#ifdef SOFT_I2C
 
+void HAL_I2C_MspInit(I2C_HandleTypeDef *hi2c)
+{
+}
+
+
+#else // SOFT_I2C
 // callback from HAL_I2C_Init
 void HAL_I2C_MspInit(I2C_HandleTypeDef *hi2c)
 {
@@ -771,9 +965,33 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef *hi2c)
 // 	HAL_NVIC_SetPriority(I2C2_EV_IRQn, 0, 2);
 // 	HAL_NVIC_EnableIRQ(I2C2_EV_IRQn);
 }
+#endif // !SOFT_I2C
 
 void init_imu()
 {
+#ifdef SOFT_I2C
+
+	GPIO_InitTypeDef  GPIO_InitStruct;
+/* Enable GPIO TX/RX clock */
+	__HAL_RCC_GPIOB_CLK_ENABLE();
+/* I2C CLK GPIO pin configuration  */
+	GPIO_InitStruct.Pin       = CLOCK_PIN;
+	GPIO_InitStruct.Mode      = GPIO_MODE_OUTPUT_OD;
+	GPIO_InitStruct.Pull      = GPIO_NOPULL;
+	GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_HIGH;
+	HAL_GPIO_Init(CLOCK_GPIO, &GPIO_InitStruct);
+
+/* I2C DATA GPIO pin configuration  */
+	GPIO_InitStruct.Pin       = DATA_PIN;
+	HAL_GPIO_Init(DATA_GPIO, &GPIO_InitStruct);
+
+    
+	SET_PIN(CLOCK_GPIO, CLOCK_PIN);
+	SET_PIN(DATA_GPIO, DATA_PIN);
+
+
+#else // SOFT_I2C
+
 	I2cHandle.Instance             = I2C2;
 // dutycycle 2 can do 923076Hz or 1Mhz
 	I2cHandle.Init.ClockSpeed      = 1000000;
@@ -790,6 +1008,8 @@ void init_imu()
 	I2cHandle.Init.NoStretchMode   = I2C_NOSTRETCH_DISABLE;  
 
 	HAL_I2C_Init(&I2cHandle);
+#endif // !SOFT_I2C
+
 
 // read 0x68
 //	i2c_read_device(0x75, 1);

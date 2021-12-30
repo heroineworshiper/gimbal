@@ -35,9 +35,10 @@
 //#define USE_PWM
 
 #define PWM_DISABLE_PIN 5
-#define MODE_PIN 2
-#define PITCH_PIN 3
-#define YAW_PIN 4
+//#define MODE_PIN 2    // mode PWM D2
+#define MODE_PIN 1      // mode switch C1
+#define PITCH_PIN 3     // pitch PWM/UART input D3
+#define YAW_PIN 4       // yaw PWM/UART output D4
 
 #define TIMER_DEADBAND 256
 #define STICK_DEADBAND 16384
@@ -92,7 +93,7 @@ uint16_t stick_counter = 0;
 #define STICK_COUNT 10
 
 // code to send in UART mode
-uint8_t yaw_code = 'U';
+uint8_t code = 0;
 
 
 #ifdef USE_PWM
@@ -238,12 +239,12 @@ ISR(TIMER1_OVF_vect)
 		if(pwm_cycles >= 4)
 		{
 			pwm_cycles = 0;
-// send RS232 byte
+// send command code
 // start bit
 			bitClear(PORTD, YAW_PIN);
 			uart_delay();
 // data bits
-			uint8_t temp = yaw_code;
+			uint8_t temp = code;
 			int i;
 			for(i = 0; i < 8; i++)
 			{
@@ -352,25 +353,38 @@ ISR(ADC_vect)
  * 				}
  */
 
-// fix it
+// fixed pitch
 				new_pitch_pwm = PWM_MID;
 
+// set yaw rate & mode
 				if(yaw_analog >= STICK_CENTER + STICK_DEADBAND)
 				{
 					new_yaw_pwm = PWM_MID + yaw_speed;
-					yaw_code = '2';
+                    code &= 0b11111100;
+					code |= 1;
 				}
 				else
 				if(yaw_analog < STICK_CENTER - STICK_DEADBAND)
 				{
 					new_yaw_pwm = PWM_MID - yaw_speed;
-					yaw_code = '1';
+                    code &= 0b11111100;
+					code |= 2;
 				}
 				else
 				{
 					new_yaw_pwm = PWM_MID;
-					yaw_code = 'U';
+                    code &= 0b11111100;
 				}
+
+                if(bitRead(PINC, MODE_PIN))
+                {
+                    code &= 0b01111111;
+                    code |= 0x80;
+                }
+                else
+                {
+                    code &= 0b01111111;
+                }
 			}
 
 			stick_counter++;
@@ -413,20 +427,25 @@ int main()
 // PWM disable pin
 // clear bit to enable input
 	bitClear(DDRB, PWM_DISABLE_PIN);
-// enable pullup
+// enable pullups
 	bitClear(MCUCR, PUD);
 	bitSet(PORTB, PWM_DISABLE_PIN);
+    bitSet(PORTC, MODE_PIN);
+    
+
 
 // mode pin
 // set bit to enable output
+#ifdef USE_PWM
 	bitClear(DDRD, MODE_PIN);
 	bitClear(PORTD, MODE_PIN);
 
 // pitch pin
 	bitClear(DDRD, PITCH_PIN);
 	bitClear(PORTD, PITCH_PIN);
+#endif
 
-// yaw pin
+// yaw pin/UART to ARM
 	bitClear(DDRD, YAW_PIN);
 	bitClear(PORTD, YAW_PIN);
 
@@ -463,17 +482,20 @@ int main()
 	{
 		handle_serial();
 
+// handle the UART passthrough mode
 		if(!bitRead(PINB, PWM_DISABLE_PIN) && pwm_enabled)
 		{
 			print_text("pwm disabled\n");
 			cli();
 			pwm_enabled = 0;
 // disable outputs.  Must also keep the PORT bits 0 to disable the pullups
+#ifdef USE_PWM
 			bitClear(DDRD, MODE_PIN);
-			bitClear(DDRD, PITCH_PIN);
-			bitClear(DDRD, YAW_PIN);
 			bitClear(PORTD, MODE_PIN);
+			bitClear(DDRD, PITCH_PIN);
 			bitClear(PORTD, PITCH_PIN);
+#endif
+			bitClear(DDRD, YAW_PIN);
 			bitClear(PORTD, YAW_PIN);
 			sei();
 		}
@@ -483,8 +505,10 @@ int main()
 			print_text("pwm enabled\n");
 			pwm_enabled = 1;
 // enable outputs
+#ifdef USE_PWM
 			bitSet(DDRD, MODE_PIN);
 			bitSet(DDRD, PITCH_PIN);
+#endif
 			bitSet(DDRD, YAW_PIN);
 		}
 	}

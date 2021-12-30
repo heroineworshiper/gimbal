@@ -48,12 +48,7 @@ TIM_OC_InitTypeDef sConfig;
 #define P_MOSFET_PIN3 10
 #define P_MOSFET_GPIO GPIOA
 
-#define PERIOD 3600
 #define MIN_DEADBAND 196
-// PERIOD - PWM cutoff value
-#define MAX_SIN PERIOD
-// PWM cutoff value
-#define MIN_SIN 1
 
 
 
@@ -242,7 +237,6 @@ void write_motor()
 	
 	FIX_PHASE(motor.phase)
 	CLAMP(motor.power, 0, MAX_POWER);
-
 
 	
 	int max_sin = MAX_SIN - (MAX_POWER - motor.power);

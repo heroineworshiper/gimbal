@@ -43,7 +43,16 @@ typedef struct
 	int pwm1, pwm2, pwm3;
 } motor_t;
 
-#define MAX_POWER 1024
+// the PWM range
+#define PERIOD 3600
+// PERIOD - PWM cutoff value
+#define MAX_SIN PERIOD
+// PWM cutoff value
+#define MIN_SIN 1
+
+// 1/2 the PWM range
+//#define MAX_POWER 1024
+#define MAX_POWER ((MAX_SIN - MIN_SIN) / 2)
 
 extern motor_t motor;
 

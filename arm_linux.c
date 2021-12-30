@@ -62,3 +62,21 @@ void mdelay(int msec)
 	{
 	}
 }
+
+
+void udelay(int usec)
+{
+  uint32_t count = 0;
+  const uint32_t utime = (83 * usec / 7);
+
+  do
+  {
+    if ( ++count > utime )
+    {
+      return ;
+    }
+  } while (1);
+}
+
+
+

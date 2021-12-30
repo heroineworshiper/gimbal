@@ -139,11 +139,18 @@ void write_buffer(int fd, unsigned char *data, int size)
 {
 	int result = 0;
 	int bytes_sent = 0;
-	do
-	{
-		bytes_sent = write(fd, data + result, size - result);
-		if(bytes_sent > 0) result += bytes_sent;
-	}while(result < size);
+    int i;
+    for(i = 0; i < size; i++)
+    {
+        write(fd, &data[i], 1);
+        usleep(100);
+    }
+    
+// 	do
+// 	{
+// 		bytes_sent = write(fd, data + result, size - result);
+// 		if(bytes_sent > 0) result += bytes_sent;
+// 	}while(result < size);
 }
 
 void read_buffer(int fd, unsigned char *data, int size)
@@ -182,7 +189,7 @@ int main(int argc, char *argv[])
 	int write_program = 0;
 	char *filename = "";
 	int passthrough = 0;
-	int i, j;
+	int i, j, k;
 	int start_address = PROGRAM_START;
 	int size = 0;
 	unsigned char *data = 0;
@@ -324,7 +331,18 @@ int main(int argc, char *argv[])
 				
 				if(read_data[j] != data[i + j])
 				{
-					printf("files differ\n");
+					printf("main %d: readback failed\n", __LINE__);
+                    printf("wrote: \n");
+                    for(k = 0 ; k < j + 1; k++)
+                    {
+                        printf("%02x ", data[i + k]);
+                    }
+                    printf("\nread: \n");
+                    for(k = 0 ; k < j + 1; k++)
+                    {
+                        printf("%02x ", read_data[k]);
+                    }
+                    printf("\n");
 					exit(1);
 				}
 			}

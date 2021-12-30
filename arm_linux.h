@@ -83,6 +83,9 @@ void bzero(void *ptr, int size);
 void init_linux();
 #endif
 
+void udelay(int usec);
+void mdelay(int msec);
+
 
 #endif
 

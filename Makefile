@@ -4,11 +4,11 @@ OBJCOPY := /opt/arm/bin/arm-elf-objcopy
 ARM_CFLAGS := -O2 -c -I. -Irtlwifi -Iarm -Istm32f4 -fno-builtin -mthumb -mcpu=cortex-m4 -mlittle-endian -ffreestanding 
 ARM_LFLAGS := -fno-builtin -mthumb -mcpu=cortex-m4 -mlittle-endian -ffreestanding -nostdlib -nostdinc -L/opt/arm/lib/gcc/arm-elf/4.1.1/
 
-#AVR_DIR := /root/arduino-1.6.0/hardware/tools/avr/bin/
-AVR_DIR := /amazon2/root/arduino-1.8.5/hardware/tools/avr/bin/
+AVR_DIR := /root/arduino-1.8.5/hardware/tools/avr/bin/
+#AVR_DIR := /amazon2/root/arduino-1.8.5/hardware/tools/avr/bin/
 AVR_GCC := $(AVR_DIR)avr-gcc
 AVR_OBJCOPY := $(AVR_DIR)avr-objcopy -j .text -j .data -O ihex
-AVR_DUDE := avrdude -v -patmega328p -cstk500v1 -P/dev/ttyACM0 -b19200
+AVR_DUDE := avrdude -v -patmega328p -cstk500v1 -P/dev/ttyACM0 -b115200
 AVR_CFLAGS := -O2 -mmcu=atmega328p
 AVR_LFLAGS := -O2 -mmcu=atmega328p -Wl,--section-start=.text=0x0000 -nostdlib
 
