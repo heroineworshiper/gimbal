@@ -531,14 +531,28 @@ void do_feedback()
 			case 2:
 			{
 // step by some value
-				fei.target_heading -= MANUAL_STEP;
+                if(fei.flip)
+                {
+    				fei.target_heading += MANUAL_STEP;
+                }
+                else
+                {
+    				fei.target_heading -= MANUAL_STEP;
+                }
 			}
 			break;
 
 			case 1:
 			{
 // step by some value
-				fei.target_heading += MANUAL_STEP;
+                if(fei.flip)
+                {
+    				fei.target_heading -= MANUAL_STEP;
+                }
+                else
+                {
+    				fei.target_heading += MANUAL_STEP;
+                }
 			}
 			break;
         }

@@ -69,6 +69,8 @@ Then program with feiyu_program & notes in feiyu_mane.h
 
 
 enclosure2.FCStd: Handle for the feiyu + ATMega control board
+    TODO: deeper battery clamshell
+    passage for programming cables in battery compartment
 
 feiyu3.pcb: ATmega control board for the Feiyu
     Powered by 7.2-8.4V Lipo
